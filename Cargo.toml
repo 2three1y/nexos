@@ -1,0 +1,17 @@
+# NexOS — Rust workspace root
+#
+# This is a Cargo *workspace* (not a package). It groups the kernel and
+# userland crates so they can be built/checked together while remaining
+# independently targetable (the kernel is freestanding/no_std; userland
+# will later link against the kernel's syscall ABI).
+
+[workspace]
+members = ["kernel", "userland"]
+
+# Shared build settings for every crate in the workspace.
+[workspace.metadata]
+description = "NexOS — an open-source operating system kernel written in Rust"
+
+# Default to a release build for the kernel (optimized, no debug symbols).
+[workspace.metadata.build]
+optimization = "release"
