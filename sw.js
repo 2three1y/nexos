@@ -1,5 +1,5 @@
 /* NexOS Web offline cache: network first, falling back to the cached copy. Same-origin only. */
-const CACHE = "nexos-web-v4";
+const CACHE = "nexos-web-v5";
 const FILES = ["./", "index.html", "styles.css", "script.js"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
