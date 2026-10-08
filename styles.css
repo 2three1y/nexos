@@ -93,3 +93,7 @@ h2:focus{outline:3px solid var(--focus);outline-offset:2px}
 .launcher li.static{grid-column:1/-1}
 .launch-link{display:inline-flex;align-items:center;min-height:44px;padding:.4rem .2rem;font-weight:700}
 .launcher li.static .hint{display:inline;margin:0;font-size:.9rem}
+.disclosure{margin-top:1rem}
+#sound-toggle .tri{color:var(--yellow);display:inline-block;margin-right:.4rem;transition:transform .15s}
+#sound-toggle[aria-expanded="true"] .tri{transform:rotate(90deg)}
+#sound-panel{margin-top:.5rem;border-top:2px solid var(--line);padding-top:.25rem}
