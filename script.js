@@ -1,7 +1,7 @@
-/* NexOS Web: a browser twin of the NexOS operating system. MIT licensed. No network requests. */
+/* NexOS Web: a browser twin of the NexOS operating system. MIT licensed. Network: only its own files (beat styles, apps, and the status command's site check). */
 (() => {
 "use strict";
-const VERSION = "0.6";
+const VERSION = "0.6.1", BUILD_DATE = "October 8, 2026";
 const $ = (s) => document.querySelector(s);
 const form = $("#cmd-form"), appForm = $("#app-form");
 let logEl = $("#log"), input = $("#cmd"), choicesEl = $("#choices");
@@ -357,7 +357,7 @@ function setMode(m) {
   labelText.textContent = m ? "Command, in " + m.label : "Command";
   modeNameEl.textContent = m ? m.label : "Shell";
 }
-let closeAfterRun = false;
+let closeAfterRun = false, afterClose = null;
 function quitApp(msg) {
   if (mode && mode.onQuit) mode.onQuit();
   setMode(null);
@@ -887,11 +887,94 @@ function launch(id) {
   setMode(APPS[id]); APPS[id].start();
 }
 
+
+/* ---------- status: how this NexOS and the live site are doing, one short fact per line ---------- */
+const STATUS_TIMEOUT = 5000;
+function statusChecks() {
+  return [
+    ["Home page", "index.html"], ["System code", "script.js"], ["Styles", "styles.css"], ["Beat styles list", "beat/genres.json"],
+    ["Insomnia OS app", "apps/insomnia/index.html"], ["Meme Projects app", "apps/memeprojects/index.html"],
+    [curGenre().label + " beat", genreFile(curGenre())],
+  ];
+}
+// One check: a HEAD request, never cached (the service worker leaves HEAD alone, so this is the live site, not the offline copy).
+function checkFile(name, path) {
+  const t0 = performance.now(), ctl = window.AbortController ? new AbortController() : null;
+  const timer = setTimeout(() => { if (ctl) ctl.abort(); }, STATUS_TIMEOUT);
+  const done = (ok, why) => { clearTimeout(timer); return { name, ok, why, ms: Math.round(performance.now() - t0) }; };
+  let p;
+  try { p = fetch(path + (path.includes("?") ? "&" : "?") + "status=" + Date.now(), { method: "HEAD", cache: "no-store", signal: ctl ? ctl.signal : undefined }); }
+  catch (e) { return Promise.resolve(done(false, "could not check")); }
+  return Promise.resolve(p).then((r) => (r && r.ok ? done(true) : done(false, "error " + (r ? r.status : "unknown"))),
+    (e) => done(false, e && e.name === "AbortError" ? "timed out after " + STATUS_TIMEOUT / 1000 + " seconds" : navigator.onLine === false ? "offline" : "not reachable"));
+}
+function nexosStorage() {
+  let items = 0, bytes = 0;
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && (k.startsWith("looscid:") || k === "calm-mode")) { items++; bytes += (k.length + (localStorage.getItem(k) || "").length) * 2; } } } catch (e) {}
+  return { items, bytes };
+}
+const kb = (b) => (b < 1024 ? b + " bytes" : (b / 1024).toFixed(b < 10240 ? 1 : 0) + " KB");
+function offlineCache() {
+  const sw = navigator.serviceWorker, active = !!(sw && sw.controller);
+  const keys = window.caches && caches.keys ? caches.keys().catch(() => []) : Promise.resolve([]);
+  return keys.then((ks) => { const v = (ks || []).filter((k) => /^nexos-web-/.test(k)).sort().pop(); return { active, version: v ? v.replace("nexos-web-", "") : null }; });
+}
+let statusRunning = false;
+function statusCmd() {
+  if (statusRunning) { line("Already checking. The status is on its way."); return; }
+  statusRunning = true;
+  line("Checking NexOS status. This takes a few seconds.", "dimt");
+  const online = navigator.onLine !== false;
+  loadGenres().then(() => {
+    const checks = statusChecks();
+    return Promise.all([online ? Promise.all(checks.map(([n, p]) => checkFile(n, p))) : checks.map(([n]) => ({ name: n, ok: false, why: "offline", ms: 0 })), offlineCache()]);
+  }).then(([res, cache]) => {
+    const failed = res.filter((r) => !r.ok), slow = res.reduce((a, r) => (r.ms > a.ms ? r : a), res[0]);
+    const avg = Math.round(res.reduce((a, r) => a + r.ms, 0) / res.length);
+    const apps = catalog.filter((a) => isInstalled(a.id)).length, st = nexosStorage();
+    const reduce = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const calm = typeof window.calmMode === "function" ? window.calmMode() : document.documentElement.classList.contains("calm");
+    line("NexOS status:", "hi");
+    line("Version: NexOS Web " + VERSION + ", built " + BUILD_DATE + ".");
+    line("Connection: " + (online ? "online." : "offline."));
+    line("Offline cache: " + (cache.active && cache.version ? "installed, version " + cache.version + "." : cache.active ? "service worker active, cache not found." : cache.version ? "saved (version " + cache.version + "), service worker not active yet." : "not installed."));
+    const sameWhy = failed.length > 1 && failed.every((r) => r.why === failed[0].why);
+    if (!online) line("Site check: skipped while offline.");
+    else if (failed.length === res.length && sameWhy) line("Site check: all " + res.length + " systems failed, " + failed[0].why + ".", "err");
+    else if (!failed.length) line("Site check: all " + res.length + " systems OK. Average " + avg + " ms, slowest " + slow.name + " at " + slow.ms + " ms.", "ok");
+    else {
+      line("Site check: " + failed.length + " of " + res.length + " systems failed.", "err");
+      failed.forEach((r) => line("Failed: " + r.name + ", " + r.why + ".", "err"));
+      if (failed.length < res.length) line(res.length - failed.length + " others OK, average " + avg + " ms.");
+    }
+    line("Apps installed: " + apps + " of " + catalog.length + ".");
+    line("Calm mode: " + (calm ? "on" : "off") + ". Reduce Motion: " + (reduce ? "on" : "off") + ".");
+    line("Sound: " + (muted ? "muted" : "on") + ", volume " + volume + " percent.");
+    line("Beat: " + curGenre().label + ", " + (beatPlaying() ? "playing." : "not playing."));
+    line("Uptime: " + spoken(Date.now() - bootTime) + ".");
+    line("Storage on this device: " + plural(st.items, "item") + ", about " + kb(st.bytes) + ".");
+    const summary = !online ? "NexOS is running offline" + (cache.version ? " from the offline cache." : ". Some apps may not open.")
+      : !failed.length ? "NexOS is healthy."
+      : failed.length === res.length ? "NexOS can't reach the site right now. Try again in a minute."
+      : "NexOS is running, but " + plural(failed.length, "system") + " failed the check.";
+    line(summary, failed.length || !online ? "err" : "ok");
+    if (failed.length) SFX.error(); else SFX.update();
+  }).catch((e) => { line("Status check failed: " + (e && e.message ? e.message : "unknown error") + ".", "err"); })
+    .then(() => { statusRunning = false; flushStatus(); });
+}
+// The report lands in the Terminal log (a polite live region). If Terminal was closed meanwhile, the polite status line carries the summary.
+function flushStatus() {
+  const lines = pending || [];
+  const t = CTX.terminal, prev = { logEl, cur };
+  logEl = t.log; flush(); logEl = prev.logEl;
+  if (t.log.closest("[hidden]") && lines.length) { const s = $("#status"); s.textContent = ""; setTimeout(() => { s.textContent = lines[lines.length - 1][0]; }, 30); }
+}
+
 /* ---------- shell ---------- */
 const HELP = [
   ["help", "this list"], ["ls", "list files"], ["cat file", "show a file"], ["write file text", "save a file"], ["rm file", "delete a file"],
   ["apps", "your installed apps"], ["store", "the App Store"], ["insomnia", "open Insomnia OS (insomnia lite is the old text version)"], ["easyconvert", "open Easyconvert, the file converter"], ["memes", "open Meme Projects"], ["sound", "on, off, test, list, keys on or off, or a volume like sound 120"],
-  ["name", "set what I call you, or name clear"], ["about or sysinfo", "About this NexOS: what it is, system info and credits"], ["files", "the Files app"], ["beat", "play or stop the NexOS beat"], ["home", "close the terminal and go to the Home screen"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
+  ["name", "set what I call you, or name clear"], ["about or sysinfo", "About this NexOS: what it is, system info and credits"], ["files", "the Files app"], ["beat", "play or stop the NexOS beat"], ["home", "close the terminal and go to the Home screen"], ["status", "how NexOS and the site are doing: version, connection, a live site check, apps, Calm mode, sound and storage"], ["settings or sound", "open Sound settings on Home, with Beat style and volume"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
 ];
 function shell(raw) {
   const t = raw.trim(); if (!t) { line("Type help to see commands."); return; }
@@ -918,8 +1001,11 @@ function shell(raw) {
       return err("Store commands: list, search, info, install, uninstall, update, installed.");
     }
     case "install": case "uninstall": case "update": { if (w === "update" && /^all$/i.test(arg)) return updateAll(); const a = findApp(arg); if (!a) return err("Which app? For example: " + w + " guess"); return storeAction(w, a); }
-    case "sound": case "mute": case "unmute": case "volume": case "beep": return soundCmd(w, arg);
+    case "sound": if (!arg) return openSoundFromShell(); // falls through to the sound commands
+    case "mute": case "unmute": case "volume": case "beep": return soundCmd(w, arg);
     case "about": case "ver": case "version": case "sysinfo": printAbout(); return;
+    case "status": case "health": statusCmd(); return;
+    case "settings": case "setting": case "preferences": return openSoundFromShell();
     case "files": setMode(Files); Files.start(); return;
     case "beat": {
       const say = (t) => line(t, "ok");
@@ -1059,7 +1145,7 @@ function run(raw, fromButton) {
     else if (mode) mode.input(raw);
     else shell(raw);
   } catch (e) { line("Something went wrong: " + e.message, "err"); }
-  if (closeAfterRun) { closeAfterRun = false; pending = null; closeView(!fromButton); return true; }
+  if (closeAfterRun) { closeAfterRun = false; pending = null; closeView(!fromButton); if (afterClose) { const f = afterClose; afterClose = null; f(); } return true; }
   if (openAfterRun) { const id = openAfterRun, from = view; openAfterRun = null; flush(shown); renderChoices(); openView("app:" + id); returnTo = from === "terminal" ? "terminal" : null; return true; }
   flush(shown);
   renderChoices();
@@ -1221,6 +1307,16 @@ function setSoundOpen(open, withSound) {
 }
 setSoundOpen(load("sound_open", false), false);
 soundToggle.addEventListener("click", () => { gesture(); setSoundOpen(soundPanel.hidden, true); });
+// settings and sound (on their own) in Terminal: go Home, open Sound settings and land on Beat style.
+function openSoundSettings() {
+  setSoundOpen(true, true); loadGenres();
+  const sel = $("#beat-genre"); (sel || soundToggle).focus();
+  soundSay("Sound settings opened. You're on Beat style. Volume, Mute and Listen to the beat are here too.");
+}
+function openSoundFromShell() {
+  if (cur !== CTX.terminal) { openSoundSettings(); return; }
+  closeAfterRun = true; afterClose = openSoundSettings; line("Opening Sound settings.", "dimt");
+}
 
 /* ---- Listen to the beat: the NexOS beat, played through the same volume, mute and limiter ---- */
 const BEAT_TITLE = "NexOS Morning to Night", beatAudio = $("#beat-audio"), beatBtn = $("#beat");
