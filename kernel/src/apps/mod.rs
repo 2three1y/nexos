@@ -4,3 +4,4 @@
 pub mod insomnia;
 pub mod soundscape;
 pub mod thoughts;
+pub mod ui;

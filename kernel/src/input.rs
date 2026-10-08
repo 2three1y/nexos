@@ -73,3 +73,8 @@ pub fn read_key() -> u8 {
         interrupts::enable_and_hlt();
     }
 }
+
+/// Non-blocking read for apps that poll (timers, stopwatch): the next key, if any.
+pub fn try_key() -> Option<u8> {
+    x86_64::instructions::interrupts::without_interrupts(pop)
+}

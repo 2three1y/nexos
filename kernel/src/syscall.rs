@@ -5,6 +5,9 @@
 //!   1  write(ptr, len)       print text (screen + serial), returns len
 //!   2  uptime_ms()           milliseconds since boot
 //!   3  getpid()              process id (1 for now)
+//!   4  read_key()            wait for one key, returns its byte (Enter = 10)
+//!   5  beep(freq_hz, ms)     play a tone on the PC speaker (respects mute)
+//!   6  sleep_ms(ms)          pause the program
 //!
 //! `enter_user` drops to ring 3 with `iretq`; `exit` (or a fault in the
 //! program) unwinds straight back to the kernel stack saved by `enter_user`.
@@ -117,6 +120,18 @@ extern "C" fn syscall_dispatch(nr: u64, a1: u64, a2: u64, _a3: u64) -> i64 {
         }
         2 => timer::uptime_ms() as i64,
         3 => 1,
+        4 => crate::input::read_key() as i64,
+        5 => {
+            // The tone waits on timer ticks, so let interrupts in while it plays.
+            x86_64::instructions::interrupts::enable();
+            timer::tone((a1 as u32).clamp(20, 20_000), a2.min(3000));
+            0
+        }
+        6 => {
+            x86_64::instructions::interrupts::enable();
+            timer::sleep_ms(a1.min(10_000));
+            0
+        }
         _ => -38, // ENOSYS
     }
 }

@@ -16,7 +16,7 @@ const VGA_MEM: usize = 0xB8000;
 #[allow(dead_code)]
 pub enum Color {
     Black = 0, Blue = 1, Cyan = 3, LightGrey = 7, LightCyan = 11,
-    LightGreen = 10, Yellow = 14, White = 15,
+    LightGreen = 10, LightRed = 12, Yellow = 14, White = 15,
 }
 
 pub struct Writer {

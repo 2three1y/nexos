@@ -89,6 +89,44 @@ pub fn boot_chime_soft() {
     tone(784, 140);
 }
 
+/// App Store: a bright rising arpeggio when an app finishes installing (C6 E6 G6 C7).
+pub fn install_chime() {
+    for (f, ms) in [(1047, 70), (1319, 70), (1568, 70), (2093, 220)] {
+        tone(f, ms);
+        sleep_ms(15);
+    }
+}
+
+/// App Store: a soft falling pair when an app is removed (G5 then C5).
+pub fn uninstall_chime() {
+    tone(784, 120);
+    sleep_ms(30);
+    tone(523, 260);
+}
+
+/// Something went wrong: two short low buzzes.
+pub fn error_tone() {
+    tone(196, 140);
+    sleep_ms(70);
+    tone(196, 220);
+}
+
+/// Clock alarm: three rounds of a quick triple beep.
+pub fn alarm_chime() {
+    for _ in 0..3 {
+        for _ in 0..3 {
+            tone(1760, 90);
+            sleep_ms(60);
+        }
+        sleep_ms(250);
+    }
+}
+
+/// A tiny confirm click for saves.
+pub fn ok_click() {
+    tone(1319, 40);
+}
+
 /// A gentle falling goodnight chime (G5 E5 C5, then a long G4).
 pub fn goodnight_chime() {
     for (f, ms) in [(784, 220), (659, 220), (523, 260), (392, 700)] {
