@@ -1,0 +1,8 @@
+# Every crate in this workspace is built for bare-metal x86_64 (no OS).
+# x86_64-unknown-none is a built-in Rust target: no custom target JSON or
+# build-std needed. Static relocation model so GRUB can load the ELF as-is.
+[build]
+target = "x86_64-unknown-none"
+
+[target.x86_64-unknown-none]
+rustflags = ["-C", "relocation-model=static", "-C", "code-model=small", "-C", "force-frame-pointers=yes"]

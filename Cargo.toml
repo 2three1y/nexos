@@ -1,17 +1,22 @@
-# NexOS — Rust workspace root
+# Looscid OS — Cargo workspace root
 #
-# This is a Cargo *workspace* (not a package). It groups the kernel and
-# userland crates so they can be built/checked together while remaining
-# independently targetable (the kernel is freestanding/no_std; userland
-# will later link against the kernel's syscall ABI).
+# NexOS is the kernel; Looscid OS is the operating system layer that runs on
+# top of it. The kernel is a freestanding no_std x86_64 binary booted by GRUB
+# (Multiboot2); userland/ holds ring-3 programs that the kernel loads and runs.
 
 [workspace]
+resolver = "2"
 members = ["kernel", "userland"]
 
-# Shared build settings for every crate in the workspace.
-[workspace.metadata]
-description = "NexOS — an open-source operating system kernel written in Rust"
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
 
-# Default to a release build for the kernel (optimized, no debug symbols).
-[workspace.metadata.build]
-optimization = "release"
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 2
+debug = false
