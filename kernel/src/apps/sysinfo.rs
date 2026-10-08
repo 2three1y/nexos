@@ -6,7 +6,7 @@ use core::sync::atomic::Ordering;
 
 fn report() {
     ui::heading("System Info");
-    println!("NexOS {}, x86_64.", env!("CARGO_PKG_VERSION"));
+    println!("NexOS {}, {}.", env!("CARGO_PKG_VERSION"), crate::cpu::ARCH);
     println!("Uptime: {}.", ui::duration_text(timer::uptime_ms() / 1000));
     println!("Clock: {}.", ui::clock_text());
     let (used, free) = allocator::stats();

@@ -8,7 +8,6 @@
 
 use crate::memory::{self, USER_BASE, USER_LIMIT};
 use crate::{gdt, syscall};
-use x86_64::structures::paging::PageTableFlags;
 
 static HELLO_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/userland.elf"));
 static GUESS_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/guess.elf"));
@@ -53,31 +52,41 @@ fn rd16(b: &[u8], o: usize) -> u64 { u16::from_le_bytes([b[o], b[o + 1]]) as u64
 fn rd32(b: &[u8], o: usize) -> u64 { u32::from_le_bytes(b[o..o + 4].try_into().unwrap()) as u64 }
 fn rd64(b: &[u8], o: usize) -> u64 { u64::from_le_bytes(b[o..o + 8].try_into().unwrap()) }
 
-/// Load an ELF64 executable into the user window; returns its entry point.
+/// Load an ELF executable into the user window; returns its entry point.
+/// The x86_64 kernel runs ELF64 programs, the i686 kernel ELF32 programs.
 fn load_elf(elf: &[u8]) -> Result<u64, &'static str> {
-    if elf.len() < 64 || &elf[0..4] != b"\x7fELF" || elf[4] != 2 {
-        return Err("not an ELF64 image (build userland first: make)");
+    #[cfg(target_arch = "x86_64")]
+    const CLASS: u8 = 2;
+    #[cfg(target_arch = "x86")]
+    const CLASS: u8 = 1;
+    if elf.len() < 52 || &elf[0..4] != b"\x7fELF" || elf[4] != CLASS {
+        return Err("not an ELF image for this CPU (build userland first: make)");
     }
-    let entry = rd64(elf, 24);
-    let phoff = rd64(elf, 32) as usize;
-    let phentsize = rd16(elf, 54) as usize;
-    let phnum = rd16(elf, 56) as usize;
+    let wide = CLASS == 2;
+    let word = |o: usize| if wide { rd64(elf, o) } else { rd32(elf, o) };
+    let (entry, phoff, phentsize, phnum) = if wide {
+        (rd64(elf, 24), rd64(elf, 32) as usize, rd16(elf, 54) as usize, rd16(elf, 56) as usize)
+    } else {
+        (rd32(elf, 24), rd32(elf, 28) as usize, rd16(elf, 42) as usize, rd16(elf, 44) as usize)
+    };
     for i in 0..phnum {
         let ph = phoff + i * phentsize;
         if rd32(elf, ph) != 1 {
             continue; // not PT_LOAD
         }
-        let offset = rd64(elf, ph + 8) as usize;
-        let vaddr = rd64(elf, ph + 16);
-        let filesz = rd64(elf, ph + 32) as usize;
-        let memsz = rd64(elf, ph + 40);
+        // ELF64: offset@8 vaddr@16 filesz@32 memsz@40; ELF32: offset@4 vaddr@8 filesz@16 memsz@20
+        let (offset, vaddr, filesz, memsz) = if wide {
+            (word(ph + 8) as usize, word(ph + 16), word(ph + 32) as usize, word(ph + 40))
+        } else {
+            (word(ph + 4) as usize, word(ph + 8), word(ph + 16) as usize, word(ph + 20))
+        };
         if memsz == 0 {
             continue;
         }
         if vaddr < USER_BASE || vaddr + memsz > USER_LIMIT || offset + filesz > elf.len() {
             return Err("segment outside the user window");
         }
-        memory::map_range(vaddr, memsz, PageTableFlags::USER_ACCESSIBLE | PageTableFlags::WRITABLE)?;
+        memory::map_range(vaddr, memsz, memory::USER_FLAGS)?;
         unsafe {
             let dst = vaddr as *mut u8;
             core::ptr::write_bytes(dst, 0, memsz as usize);
@@ -104,12 +113,12 @@ pub fn run(app: &App) -> Result<i64, &'static str> {
     memory::map_range(
         USER_STACK_TOP - USER_STACK_SIZE,
         USER_STACK_SIZE,
-        PageTableFlags::USER_ACCESSIBLE | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+        memory::USER_STACK_FLAGS,
     )?;
     let sel = gdt::selectors();
     let code = unsafe {
         syscall::enter_user(entry, USER_STACK_TOP, sel.user_code.0 as u64, sel.user_data.0 as u64)
     };
-    x86_64::instructions::interrupts::enable();
+    crate::cpu::interrupts::enable();
     Ok(code)
 }

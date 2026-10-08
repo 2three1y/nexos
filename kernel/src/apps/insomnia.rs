@@ -154,9 +154,9 @@ fn sheep_screen(sheep: &mut u32, twinkle: &mut bool, first: bool) {
 
     let mut next_twinkle = timer::ticks() + 50;
     loop {
-        x86_64::instructions::interrupts::disable();
+        crate::cpu::interrupts::disable();
         let key = input::pop();
-        x86_64::instructions::interrupts::enable();
+        crate::cpu::interrupts::enable();
         match key {
             Some(b' ') => {
                 *sheep += 1;
@@ -192,7 +192,7 @@ fn sheep_screen(sheep: &mut u32, twinkle: &mut bool, first: bool) {
                     put_at(r, c, ch, if rng.next() % 4 == 0 { SKY } else { DIM });
                     next_twinkle = timer::ticks() + 40;
                 }
-                x86_64::instructions::hlt();
+                crate::cpu::hlt();
             }
         }
     }
@@ -373,16 +373,16 @@ fn goodnight() {
     serial::write_str("[Goodnight] Returning to the shell in 10 seconds, or press any key.\n");
     timer::goodnight_chime();
     // Drop keys typed during the chime, then wait for a key or 10 seconds.
-    x86_64::instructions::interrupts::without_interrupts(|| while input::pop().is_some() {});
+    crate::cpu::interrupts::without_interrupts(|| while input::pop().is_some() {});
     let end = timer::ticks() + 10 * timer::HZ;
     while timer::ticks() < end {
-        x86_64::instructions::interrupts::disable();
+        crate::cpu::interrupts::disable();
         let k = input::pop();
-        x86_64::instructions::interrupts::enable();
+        crate::cpu::interrupts::enable();
         if k.is_some() {
             break;
         }
-        x86_64::instructions::hlt();
+        crate::cpu::hlt();
     }
 }
 

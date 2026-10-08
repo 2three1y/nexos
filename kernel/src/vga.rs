@@ -5,7 +5,7 @@
 
 use core::fmt;
 use spin::Mutex;
-use x86_64::instructions::port::Port;
+use crate::cpu::port::Port;
 
 const COLS: usize = 80;
 const ROWS: usize = 25;

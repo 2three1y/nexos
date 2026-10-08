@@ -63,7 +63,7 @@ pub fn pop() -> Option<u8> {
 
 /// Block (sleeping the CPU with `hlt`) until a key arrives.
 pub fn read_key() -> u8 {
-    use x86_64::instructions::interrupts;
+    use crate::cpu::interrupts;
     loop {
         interrupts::disable();
         if let Some(b) = pop() {
@@ -76,5 +76,5 @@ pub fn read_key() -> u8 {
 
 /// Non-blocking read for apps that poll (timers, stopwatch): the next key, if any.
 pub fn try_key() -> Option<u8> {
-    x86_64::instructions::interrupts::without_interrupts(pop)
+    crate::cpu::interrupts::without_interrupts(pop)
 }

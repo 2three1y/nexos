@@ -17,13 +17,13 @@ impl Write for Mirror {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    x86_64::instructions::interrupts::without_interrupts(|| {
+    crate::cpu::interrupts::without_interrupts(|| {
         let _ = Mirror.write_fmt(args);
     });
 }
 
 pub fn colored(color: vga::Color, args: fmt::Arguments) {
-    x86_64::instructions::interrupts::without_interrupts(|| {
+    crate::cpu::interrupts::without_interrupts(|| {
         vga::WRITER.lock().set_color(color);
         let _ = Mirror.write_fmt(args);
         vga::WRITER.lock().reset_color();
@@ -31,7 +31,7 @@ pub fn colored(color: vga::Color, args: fmt::Arguments) {
 }
 
 pub fn clear() {
-    x86_64::instructions::interrupts::without_interrupts(|| {
+    crate::cpu::interrupts::without_interrupts(|| {
         vga::WRITER.lock().clear();
         // No ANSI escapes on serial: a screen reader would read them aloud.
         serial::write_str("\n[screen cleared]\n");

@@ -9,7 +9,9 @@ fn main() {
     println!("cargo:rerun-if-changed=catalog");
 
     let profile = env::var("PROFILE").unwrap_or_else(|_| "release".into());
-    let bin_dir = dir.join("../target/x86_64-unknown-none").join(&profile);
+    // x86_64-unknown-none, or i686-nexos for the 32-bit build (targets/i686-nexos.json)
+    let target = env::var("TARGET").unwrap_or_else(|_| "x86_64-unknown-none".into());
+    let bin_dir = dir.join("../target").join(&target).join(&profile);
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     // (binary built from userland/, file name that user.rs embeds)
     for (bin, embed) in [("nexos-userland", "userland.elf"), ("guess", "guess.elf")] {

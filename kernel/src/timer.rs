@@ -2,7 +2,7 @@
 //! soundscapes, and the CMOS real-time clock for timestamps.
 
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
-use x86_64::instructions::port::Port;
+use crate::cpu::port::Port;
 
 pub const HZ: u64 = 100;
 const PIT_BASE_HZ: u32 = 1_193_182;
@@ -40,7 +40,7 @@ pub fn uptime_ms() -> u64 {
 pub fn sleep_ms(ms: u64) {
     let end = ticks() + (ms * HZ).div_ceil(1000);
     while ticks() < end {
-        x86_64::instructions::hlt();
+        crate::cpu::hlt();
     }
 }
 
@@ -144,7 +144,7 @@ fn cmos(reg: u8) -> u8 {
 
 /// Wall-clock hour and minute from the CMOS real-time clock.
 pub fn rtc_hhmm() -> (u8, u8) {
-    let (mut h, mut m, b) = x86_64::instructions::interrupts::without_interrupts(|| {
+    let (mut h, mut m, b) = crate::cpu::interrupts::without_interrupts(|| {
         let mut spins = 0;
         while cmos(0x0A) & 0x80 != 0 && spins < 100_000 {
             spins += 1; // wait out an RTC update in progress

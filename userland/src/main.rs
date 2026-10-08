@@ -1,24 +1,18 @@
 //! `hello` — the first NexOS userland program.
 //!
 //! Runs in ring 3 with no access to kernel memory or I/O ports. Everything it
-//! does goes through NexOS system calls (`int 0x80`, number in RAX).
+//! does goes through NexOS system calls (`int 0x80`, number in RAX, or EAX on i686).
 
 #![no_std]
 #![no_main]
 
-use core::arch::asm;
 use core::fmt::{self, Write};
+use nexos::syscall;
 
 const SYS_EXIT: u64 = 0;
 const SYS_WRITE: u64 = 1;
 const SYS_UPTIME_MS: u64 = 2;
 const SYS_GETPID: u64 = 3;
-
-unsafe fn syscall(nr: u64, a1: u64, a2: u64) -> i64 {
-    let ret: i64;
-    asm!("int 0x80", inlateout("rax") nr as i64 => ret, in("rdi") a1, in("rsi") a2, options(nostack));
-    ret
-}
 
 fn write(s: &str) {
     unsafe { syscall(SYS_WRITE, s.as_ptr() as u64, s.len() as u64) };

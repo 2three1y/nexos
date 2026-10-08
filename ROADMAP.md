@@ -42,6 +42,12 @@ The long-term goal is to boot straight into the Looscid workspace app, local-fir
 
 - [x] The OS is called NexOS everywhere: boot banner, `nexos>` prompt, about, apps and docs
 
+## Done (v0.5): 32-bit and in the browser
+
+- [x] i686 build (`make iso32`): 32-bit boot stub, GDT/TSS, IDT, two-level paging, `int 0x80` and ring 3, sharing everything else with x86_64
+- [x] The real 32-bit kernel boots in the browser with v86, with an accessible serial console and PC-speaker sound: https://2three1y.github.io/nexos/real/
+- [ ] Try it on real old hardware (a Pentium-class PC or an early netbook)
+
 ## Next: the OS layer
 
 - [ ] Per-process address spaces (a page table per program) and memory protection between programs

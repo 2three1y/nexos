@@ -1,12 +1,13 @@
 # NexOS kernel crate.
 #
-# Freestanding (no_std, no_main) x86_64 kernel, booted by GRUB via Multiboot2.
-# The 32-bit entry stub (src/boot.rs) builds identity-mapped page tables,
-# switches to 64-bit long mode and calls `kernel_main`.
+# Freestanding (no_std, no_main) kernel, booted by GRUB via Multiboot2, for
+# x86_64 (default) and 32-bit i686 (`make ARCH=i686`). On x86_64 the entry
+# stub (src/boot.rs) switches to long mode; on i686 (src/i686/boot.rs) it
+# turns on 2-level paging and stays in protected mode.
 
 [package]
 name = "nexos-kernel"
-description = "NexOS kernel — a freestanding x86_64 kernel"
+description = "NexOS kernel — a freestanding x86_64 / i686 kernel"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,9 +19,13 @@ test = false
 bench = false
 
 [dependencies]
-x86_64 = "0.15"
-pic8259 = "0.11"
 pc-keyboard = "0.8"
 uart_16550 = "0.3"
 spin = "0.9"
 linked_list_allocator = "0.10"
+
+# The x86_64 build uses these crates for its GDT/IDT/paging/PIC; the 32-bit
+# (i686) build has its own small versions in src/i686/.
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+x86_64 = "0.15"
+pic8259 = "0.11"

@@ -82,7 +82,8 @@ fn execute(line: &str) {
         "clear" => console::clear(),
         "about" => {
             console::colored(Color::LightCyan, format_args!("NexOS v{}\n", env!("CARGO_PKG_VERSION")));
-            println!("A hobby operating system in Rust for x86_64, by Hasan (2three1y).");
+            println!("A hobby operating system in Rust, by Hasan (2three1y).");
+            println!("This build: {}. NexOS builds for x86_64 and 32-bit i686.", crate::cpu::ARCH);
             println!("NexOS is both the operating system and its kernel.");
             println!("Accessible by design: keyboard-only, high contrast, serial mirror.");
         }
@@ -166,12 +167,12 @@ fn execute(line: &str) {
             _ => println!("usage: theme dark|light"),
         },
         "int3" => {
-            x86_64::instructions::interrupts::int3();
+            crate::cpu::interrupts::int3();
             println!("back in the shell after the breakpoint");
         }
         "reboot" => {
             println!("rebooting...");
-            unsafe { x86_64::instructions::port::Port::<u8>::new(0x64).write(0xFE) };
+            unsafe { crate::cpu::port::Port::<u8>::new(0x64).write(0xFE) };
         }
         _ => {
             // An app's name (or alias) opens it, so "notes" or "calculator" just works.

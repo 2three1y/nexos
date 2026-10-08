@@ -158,7 +158,9 @@ write its manifest with `kind = elf`.
 
 ### System calls (`int 0x80`)
 
-Call number in RAX, arguments in RDI and RSI, result in RAX.
+Call number in RAX, arguments in RDI and RSI, result in RAX. On the 32-bit
+(i686) build: call number in EAX, arguments in ECX and EDX, result in EAX.
+The `nexos` crate hides this, so the same app source builds for both.
 
 | # | Call | Arguments | Returns |
 |---|---|---|---|

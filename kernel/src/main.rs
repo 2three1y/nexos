@@ -1,6 +1,7 @@
 //! NexOS — the kernel.
 //!
-//! Boot path: GRUB (Multiboot2) -> boot.rs (32-bit stub, long mode) ->
+//! Boot path: GRUB (Multiboot2) -> boot.rs (32-bit stub; long mode on x86_64,
+//! plain protected mode with 2-level paging on i686 from i686/boot.rs) ->
 //! `kernel_main`, which brings up serial + VGA, GDT/TSS, IDT, memory and
 //! paging, the heap, the PIC + PIT timer, keyboard input, and then starts
 //! the NexOS shell.
@@ -13,15 +14,23 @@ extern crate alloc;
 
 mod allocator;
 mod apps;
+// Architecture-specific modules: x86_64 lives in src/*.rs, the 32-bit (i686)
+// port of the same modules in src/i686/. Everything else is shared.
+#[cfg_attr(target_arch = "x86", path = "i686/boot.rs")]
 mod boot;
 mod console;
+mod cpu;
 mod fs;
+#[cfg_attr(target_arch = "x86", path = "i686/gdt.rs")]
 mod gdt;
 mod input;
+#[cfg_attr(target_arch = "x86", path = "i686/interrupts.rs")]
 mod interrupts;
+#[cfg_attr(target_arch = "x86", path = "i686/memory.rs")]
 mod memory;
 mod serial;
 mod shell;
+#[cfg_attr(target_arch = "x86", path = "i686/syscall.rs")]
 mod syscall;
 mod timer;
 mod user;
@@ -34,12 +43,15 @@ use vga::Color;
 
 const MULTIBOOT2_MAGIC: u64 = 0x36d7_6289;
 
+/// Entry from the boot stub: `usize` arguments so the same signature works
+/// for the 64-bit (System V) and 32-bit (cdecl) boot stubs.
 #[no_mangle]
-pub extern "C" fn kernel_main(magic: u64, info_addr: u64) -> ! {
+pub extern "C" fn kernel_main(magic: usize, info_addr: usize) -> ! {
+    let (magic, info_addr) = (magic as u64, info_addr as u64);
     serial::init();
     vga::WRITER.lock().clear();
 
-    console::colored(Color::LightCyan, format_args!("NexOS v{} (x86_64) - booting\n", env!("CARGO_PKG_VERSION")));
+    console::colored(Color::LightCyan, format_args!("NexOS v{} ({}) - booting\n", env!("CARGO_PKG_VERSION"), cpu::ARCH));
     if magic != MULTIBOOT2_MAGIC {
         panic!("not booted by a Multiboot2 loader (magic {:#x})", magic);
     }
@@ -48,7 +60,10 @@ pub extern "C" fn kernel_main(magic: u64, info_addr: u64) -> ! {
     ok!("serial console on COM1 (everything on screen is mirrored here)");
 
     gdt::init();
+    #[cfg(target_arch = "x86_64")]
     ok!("GDT loaded: kernel + user segments, TSS with double-fault stack");
+    #[cfg(target_arch = "x86")]
+    ok!("GDT loaded: flat 32-bit kernel + user segments, TSS for ring-3 entry");
     interrupts::init_idt();
     ok!("IDT loaded: breakpoint, page fault, GPF, double fault, syscall gate 0x80");
 
@@ -65,11 +80,11 @@ pub extern "C" fn kernel_main(magic: u64, info_addr: u64) -> ! {
 
     interrupts::init_pics();
     timer::init_pit();
-    x86_64::instructions::interrupts::enable();
+    crate::cpu::interrupts::enable();
     ok!("PIC remapped, PIT timer at {} Hz, interrupts on", timer::HZ);
     ok!("input: PS/2 keyboard + serial (COM1) keyboard");
 
-    x86_64::instructions::interrupts::int3();
+    crate::cpu::interrupts::int3();
     ok!("breakpoint exception handled, execution resumed");
 
     let files = fs::init();
@@ -88,14 +103,14 @@ static PANICKING: AtomicBool = AtomicBool::new(false);
 
 fn halt_loop() -> ! {
     loop {
-        x86_64::instructions::interrupts::disable();
-        x86_64::instructions::hlt();
+        crate::cpu::interrupts::disable();
+        crate::cpu::hlt();
     }
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    x86_64::instructions::interrupts::disable();
+    crate::cpu::interrupts::disable();
     if PANICKING.swap(true, Ordering::SeqCst) {
         halt_loop();
     }

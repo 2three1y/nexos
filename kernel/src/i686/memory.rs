@@ -1,29 +1,33 @@
-//! Physical memory (Multiboot2 memory map + frame allocator) and paging.
+//! Physical memory (Multiboot2 memory map + frame allocator) and paging,
+//! i686 build: classic 32-bit two-level paging (no PAE, so it runs on any
+//! i686-class CPU).
 //!
-//! The boot stub identity-maps the first 1 GiB with 2 MiB pages. On top of
-//! that, the kernel maps fresh 4 KiB pages through the real page tables for
-//! the heap (at HEAP_START) and for ring-3 programs (USER_BASE..).
+//! The boot stub identity-maps the first 1 GiB with 4 MiB pages. On top of
+//! that, the kernel maps fresh 4 KiB pages through real page tables for the
+//! heap (at HEAP_START) and for ring-3 programs (USER_BASE..).
 
+use core::arch::asm;
 use spin::Mutex;
-use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::{
-    FrameAllocator, Mapper, OffsetPageTable, Page, PageTable, PageTableFlags, PhysFrame, Size4KiB, Translate,
-};
-use x86_64::{PhysAddr, VirtAddr};
 
-pub const HEAP_START: u64 = 0x4444_4444_0000;
+pub const HEAP_START: u64 = 0x5000_0000;
 pub const HEAP_SIZE: u64 = 1024 * 1024;
 pub const USER_BASE: u64 = 0x4000_0000;
 pub const USER_LIMIT: u64 = 0x4100_0000;
 
-/// Page flags, named the same way in every architecture's memory module.
-pub type Flags = PageTableFlags;
-/// Kernel heap: writable, never executable.
-pub const HEAP_FLAGS: Flags = PageTableFlags::WRITABLE.union(PageTableFlags::NO_EXECUTE);
+/// Page flags (the low bits of a 32-bit page-table entry).
+#[derive(Clone, Copy)]
+pub struct Flags(u32);
+const PRESENT: u32 = 1;
+const WRITABLE: u32 = 2;
+const USER: u32 = 4;
+const HUGE: u32 = 0x80;
+
+/// Kernel heap: writable, kernel only. (No NX bit without PAE.)
+pub const HEAP_FLAGS: Flags = Flags(WRITABLE);
 /// Ring-3 program image: user accessible and writable.
-pub const USER_FLAGS: Flags = PageTableFlags::USER_ACCESSIBLE.union(PageTableFlags::WRITABLE);
-/// Ring-3 stack: user accessible, writable, never executable.
-pub const USER_STACK_FLAGS: Flags = USER_FLAGS.union(PageTableFlags::NO_EXECUTE);
+pub const USER_FLAGS: Flags = Flags(USER | WRITABLE);
+/// Ring-3 stack.
+pub const USER_STACK_FLAGS: Flags = Flags(USER | WRITABLE);
 
 extern "C" {
     static __kernel_end: u8;
@@ -48,20 +52,26 @@ impl BootInfo {
     }
 }
 
+unsafe fn rd32(a: u64) -> u32 {
+    core::ptr::read_unaligned(a as usize as *const u32)
+}
+unsafe fn rd64(a: u64) -> u64 {
+    core::ptr::read_unaligned(a as usize as *const u64)
+}
+
 /// Parse the Multiboot2 boot information structure.
 pub unsafe fn parse_multiboot(addr: u64) -> BootInfo {
     let mut info = BootInfo { loader: [0; 48], loader_len: 0, regions: [(0, 0); MAX_REGIONS], region_count: 0, info_end: 0 };
-    let total = *(addr as *const u32) as u64;
+    let total = rd32(addr) as u64;
     info.info_end = addr + total;
     let mut tag = addr + 8;
     while tag < addr + total {
-        let ty = *(tag as *const u32);
-        let size = *((tag + 4) as *const u32) as u64;
+        let ty = rd32(tag);
+        let size = rd32(tag + 4) as u64;
         match ty {
             0 => break,
             2 => {
-                // boot loader name (NUL-terminated)
-                let s = (tag + 8) as *const u8;
+                let s = (tag + 8) as usize as *const u8;
                 let mut n = 0;
                 while n < 48 && *s.add(n) != 0 {
                     info.loader[n] = *s.add(n);
@@ -70,13 +80,12 @@ pub unsafe fn parse_multiboot(addr: u64) -> BootInfo {
                 info.loader_len = n;
             }
             6 => {
-                // memory map
-                let entry_size = *((tag + 8) as *const u32) as u64;
+                let entry_size = rd32(tag + 8) as u64;
                 let mut e = tag + 16;
                 while e + entry_size <= tag + size {
-                    let base = *(e as *const u64);
-                    let len = *((e + 8) as *const u64);
-                    let kind = *((e + 16) as *const u32);
+                    let base = rd64(e);
+                    let len = rd64(e + 8);
+                    let kind = rd32(e + 16);
                     if kind == 1 && info.region_count < MAX_REGIONS {
                         info.regions[info.region_count] = (base, len);
                         info.region_count += 1;
@@ -104,7 +113,7 @@ pub struct BumpFrameAllocator {
 
 impl BumpFrameAllocator {
     pub fn new(info: &BootInfo) -> Self {
-        let kend = unsafe { &__kernel_end as *const u8 as u64 };
+        let kend = unsafe { &__kernel_end as *const u8 as usize as u64 };
         let floor = (kend.max(info.info_end) + 0xFFF) & !0xFFF;
         let mut regions = [(0u64, 0u64); MAX_REGIONS];
         let mut count = 0;
@@ -121,14 +130,12 @@ impl BumpFrameAllocator {
         let next = if count > 0 { regions[0].0 } else { 0 };
         BumpFrameAllocator { regions, count, region: 0, next, used: 0, total }
     }
-}
 
-unsafe impl FrameAllocator<Size4KiB> for BumpFrameAllocator {
-    fn allocate_frame(&mut self) -> Option<PhysFrame> {
+    fn allocate(&mut self) -> Option<u32> {
         while self.region < self.count {
             let (_, end) = self.regions[self.region];
             if self.next + 4096 <= end {
-                let f = PhysFrame::containing_address(PhysAddr::new(self.next));
+                let f = self.next as u32;
                 self.next += 4096;
                 self.used += 1;
                 return Some(f);
@@ -144,46 +151,79 @@ unsafe impl FrameAllocator<Size4KiB> for BumpFrameAllocator {
 
 pub struct Memory {
     pub frames: BumpFrameAllocator,
-    pub mapper: OffsetPageTable<'static>,
+    pd: u32,
 }
 
 pub static MEMORY: Mutex<Option<Memory>> = Mutex::new(None);
 
 pub fn init(info: &BootInfo) {
-    let (p4_frame, _) = Cr3::read();
-    // Physical memory is identity mapped, so the physical-memory offset is 0.
-    let p4 = unsafe { &mut *(p4_frame.start_address().as_u64() as *mut PageTable) };
-    let mapper = unsafe { OffsetPageTable::new(p4, VirtAddr::new(0)) };
-    *MEMORY.lock() = Some(Memory { frames: BumpFrameAllocator::new(info), mapper });
+    let cr3: usize;
+    unsafe { asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack)) };
+    *MEMORY.lock() = Some(Memory { frames: BumpFrameAllocator::new(info), pd: (cr3 & !0xFFF) as u32 });
+}
+
+fn table(phys: u32) -> &'static mut [u32; 1024] {
+    // Page tables live below 1 GiB, which is identity mapped.
+    unsafe { &mut *(phys as usize as *mut [u32; 1024]) }
 }
 
 /// Map `[start, start+len)` to fresh frames with the given flags.
 /// Pages that are already mapped are left as they are.
-pub fn map_range(start: u64, len: u64, flags: PageTableFlags) -> Result<usize, &'static str> {
+pub fn map_range(start: u64, len: u64, flags: Flags) -> Result<usize, &'static str> {
     let mut guard = MEMORY.lock();
     let mem = guard.as_mut().ok_or("memory not initialised")?;
-    let first = Page::<Size4KiB>::containing_address(VirtAddr::new(start));
-    let last = Page::<Size4KiB>::containing_address(VirtAddr::new(start + len - 1));
+    if start + len > 0x1_0000_0000 {
+        return Err("address beyond 4 GiB");
+    }
+    let pd = table(mem.pd);
     let mut mapped = 0;
-    for page in Page::range_inclusive(first, last) {
-        if mem.mapper.translate_page(page).is_ok() {
-            continue;
+    let mut va = (start as u32) & !0xFFF;
+    let end = (start + len - 1) as u32;
+    loop {
+        let pdi = (va >> 22) as usize;
+        let pde = pd[pdi];
+        if pde & PRESENT != 0 && pde & HUGE != 0 {
+            // inside the identity-mapped 4 MiB pages: already mapped
+        } else {
+            if pde & PRESENT == 0 {
+                let pt = mem.frames.allocate().ok_or("out of physical frames")?;
+                table(pt).fill(0);
+                // The directory entry allows user + write; the page entry decides.
+                pd[pdi] = pt | PRESENT | WRITABLE | USER;
+            }
+            let pt = table(pd[pdi] & !0xFFF);
+            let pti = ((va >> 12) & 0x3FF) as usize;
+            if pt[pti] & PRESENT == 0 {
+                let frame = mem.frames.allocate().ok_or("out of physical frames")?;
+                pt[pti] = frame | flags.0 | PRESENT;
+                unsafe { asm!("invlpg [{}]", in(reg) va as usize, options(nostack)) };
+                mapped += 1;
+            }
         }
-        let frame = mem.frames.allocate_frame().ok_or("out of physical frames")?;
-        unsafe {
-            mem.mapper
-                .map_to(page, frame, flags | PageTableFlags::PRESENT, &mut mem.frames)
-                .map_err(|_| "map_to failed")?
-                .flush();
+        match va.checked_add(4096) {
+            Some(n) if n <= end => va = n,
+            _ => break,
         }
-        mapped += 1;
     }
     Ok(mapped)
 }
 
 pub fn translate(addr: u64) -> Option<u64> {
     let guard = MEMORY.lock();
-    guard.as_ref()?.mapper.translate_addr(VirtAddr::new(addr)).map(|p| p.as_u64())
+    let mem = guard.as_ref()?;
+    let va = addr as u32;
+    let pde = table(mem.pd)[(va >> 22) as usize];
+    if pde & PRESENT == 0 {
+        return None;
+    }
+    if pde & HUGE != 0 {
+        return Some(((pde & 0xFFC0_0000) | (va & 0x3F_FFFF)) as u64);
+    }
+    let pte = table(pde & !0xFFF)[((va >> 12) & 0x3FF) as usize];
+    if pte & PRESENT == 0 {
+        return None;
+    }
+    Some(((pte & !0xFFF) | (va & 0xFFF)) as u64)
 }
 
 pub fn frame_stats() -> (u64, u64) {

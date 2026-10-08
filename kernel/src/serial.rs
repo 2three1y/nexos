@@ -6,7 +6,7 @@
 
 use spin::Mutex;
 use uart_16550::SerialPort;
-use x86_64::instructions::port::Port;
+use crate::cpu::port::Port;
 
 pub static COM1: Mutex<SerialPort> = Mutex::new(unsafe { SerialPort::new(0x3F8) });
 

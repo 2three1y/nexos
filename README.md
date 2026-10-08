@@ -2,17 +2,19 @@
 
 Try it in your browser: https://2three1y.github.io/nexos/ (a web twin; the real kernel runs in QEMU or on hardware)
 
-NexOS is a hobby operating system for x86_64, written in Rust: the kernel and
-the system on top of it, all under one name.
+Boot the real kernel in your browser: https://2three1y.github.io/nexos/real/
+
+NexOS is a hobby operating system for x86_64 and 32-bit i686 PCs, written in
+Rust: the kernel and the system on top of it, all under one name.
 
 It boots on real BIOS hardware or in QEMU, drops you into the `nexos>` shell,
 and comes with its own **App Store** and a set of built-in apps. Everything is
 keyboard-only and reads well with a screen reader over the serial console.
 
-Current version: **0.4.1**. See [CHANGELOG.md](CHANGELOG.md).
+Current version: **0.5.0**. See [CHANGELOG.md](CHANGELOG.md).
 
 ```
-NexOS v0.4.1 (x86_64) - booting
+NexOS v0.5.0 (x86_64) - booting
 [ ok ] boot loader: GRUB 2.06
 ...
 [ ok ] in-memory filesystem: 3 files
@@ -38,6 +40,7 @@ calc> 12 * (3 + 4)
 
 **NexOS kernel**
 - Boots with GRUB via Multiboot2; a small 32-bit stub sets up page tables and switches to 64-bit long mode
+- Also builds as a **32-bit i686 kernel** for older PCs and the in-browser emulator, with the same shell, apps and ring-3 programs (see "i686 / older PCs" below)
 - GDT + TSS (separate kernel and user segments, a dedicated double-fault stack)
 - IDT with handlers for breakpoint, invalid opcode, page fault, general protection fault and double fault
 - 8259 PIC + PIT timer at 100 Hz (`uptime`)
@@ -102,6 +105,39 @@ make run AUDIO=none   # no sound (or AUDIO=sdl / alsa if PulseAudio isn't there)
 
 The ISO also boots on BIOS PCs from a USB stick (`dd` it to the stick).
 
+### i686 / older PCs
+
+NexOS also builds as a 32-bit kernel, for PCs without 64-bit support (any
+i686-class CPU: Pentium Pro, Pentium II/III/4, Athlon, early Atom) and for the
+browser emulator.
+
+```sh
+sudo apt install qemu-system-x86       # includes qemu-system-i386
+make iso32                  # or: make ARCH=i686   ->  build/nexos-i686.iso (about 1 MB)
+make ARCH=i686 run          # boot it in qemu-system-i386
+make ARCH=i686 serial       # headless, serial console only
+```
+
+What is the same: the shell, the filesystem, the App Store and every app, and
+real ring-3 programs (`hello`, Guess the Number) with the same `int 0x80`
+system calls. What is different under the hood (`kernel/src/i686/`):
+classic 32-bit two-level paging with 4 MiB pages for the kernel (no PAE, no
+NX bit), a 32-bit GDT/TSS and IDT, `iretd` into ring 3, and system-call
+arguments in EAX/ECX/EDX. The 32-bit kernel uses a small custom target,
+`targets/i686-nexos.json` (soft-float, no SSE), built with `build-std`.
+
+### Boot the real kernel in your browser
+
+Boot the real kernel in your browser: https://2three1y.github.io/nexos/real/
+
+That page runs `nexos-i686.iso` in [v86](https://github.com/copy/v86), an x86
+PC emulator in WebAssembly, served from the same site (no CDN, works offline
+once loaded). The kernel's serial console is shown as an accessible log with a
+labelled command box and key buttons, so it works with VoiceOver and other
+screen readers; the VGA screen is shown for sighted users. PC-speaker beeps play
+through Web Audio after your first click or key press, with a volume slider and
+mute.
+
 ## Layout
 
 ```
@@ -109,6 +145,7 @@ nexos/
 ├── Cargo.toml            # workspace: kernel + userland
 ├── rust-toolchain.toml   # nightly + rust-src + llvm-tools
 ├── .cargo/config.toml    # target x86_64-unknown-none (built in, no custom JSON)
+├── targets/i686-nexos.json # 32-bit target for `make ARCH=i686`
 ├── Makefile, build.sh    # build + ISO + QEMU
 ├── boot/grub.cfg         # GRUB menu entry (multiboot2)
 ├── docs/APPS.md          # app manifest format and app API
@@ -136,6 +173,8 @@ nexos/
 │       ├── apps/insomnia.rs   # the Insomnia app: menu, sheep, sounds screen, goodnight
 │       ├── apps/thoughts.rs   # 4am Thoughts notepad (thoughts.txt)
 │       ├── apps/soundscape.rs # PC-speaker soundscapes (timer-driven sequencer)
+│       ├── cpu.rs        # hlt, cli/sti, port I/O shared by both architectures
+│       ├── i686/         # the 32-bit port: boot, gdt, interrupts, memory, syscall
 │       └── shell.rs      # the nexos> shell
 └── userland/             # NexOS ring-3 programs
     ├── user.ld           # linked at 0x4000_0000

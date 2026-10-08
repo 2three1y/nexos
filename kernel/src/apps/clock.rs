@@ -31,7 +31,7 @@ fn wait_until(until_ms: u64) -> bool {
         if input::try_key().is_some() {
             return false;
         }
-        x86_64::instructions::hlt();
+        crate::cpu::hlt();
     }
     true
 }
@@ -73,7 +73,7 @@ fn stopwatch() {
                 return;
             }
         }
-        x86_64::instructions::hlt();
+        crate::cpu::hlt();
     }
 }
 

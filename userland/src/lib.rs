@@ -22,11 +22,22 @@ pub mod sys {
 }
 
 /// Raw system call: number in RAX, arguments in RDI and RSI, result in RAX.
+#[cfg(target_arch = "x86_64")]
 #[inline(always)]
 pub unsafe fn syscall(nr: u64, a1: u64, a2: u64) -> i64 {
     let ret: i64;
     asm!("int 0x80", inlateout("rax") nr as i64 => ret, in("rdi") a1, in("rsi") a2, options(nostack));
     ret
+}
+
+/// Raw system call (32-bit i686 build): number in EAX, arguments in ECX and
+/// EDX, result in EAX. Same call numbers and meanings as on x86_64.
+#[cfg(target_arch = "x86")]
+#[inline(always)]
+pub unsafe fn syscall(nr: u64, a1: u64, a2: u64) -> i64 {
+    let ret: i32;
+    asm!("int 0x80", inlateout("eax") nr as u32 => ret, in("ecx") a1 as u32, in("edx") a2 as u32, options(nostack));
+    ret as i64
 }
 
 pub fn write(s: &str) {
