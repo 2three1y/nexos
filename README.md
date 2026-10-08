@@ -1,29 +1,29 @@
-# Looscid OS (NexOS kernel)
+# NexOS
 
-Looscid OS is a hobby operating system for x86_64, written in Rust.
-**NexOS** is its kernel; **Looscid OS** is the system layer that runs on top of it.
+NexOS is a hobby operating system for x86_64, written in Rust: the kernel and
+the system on top of it, all under one name.
 
-It boots on real BIOS hardware or in QEMU, drops you into the `looscid>` shell,
+It boots on real BIOS hardware or in QEMU, drops you into the `nexos>` shell,
 and comes with its own **App Store** and a set of built-in apps. Everything is
 keyboard-only and reads well with a screen reader over the serial console.
 
-Current version: **0.4** (the App Store release).
+Current version: **0.4.1**. See [CHANGELOG.md](CHANGELOG.md).
 
 ```
-NexOS kernel v0.4.0 (x86_64) - booting Looscid OS
+NexOS v0.4.1 (x86_64) - booting
 [ ok ] boot loader: GRUB 2.06
 ...
 [ ok ] in-memory filesystem: 3 files
 [ ok ] user mode: 9 programs registered, syscalls via int 0x80
 [ ok ] App Store: 9 apps in the catalog, 7 installed
-Welcome to Looscid OS.
-Looscid OS shell ready. Type 'help' for commands.
+Welcome to NexOS.
+NexOS shell ready. Type 'help' for commands.
 Type home for your apps, or store for the App Store.
-looscid> store install piano
+nexos> store install piano
 Installing Piano 1.0, 7 KB.
 Checking the package. OK.
 Installed Piano. Open it with: piano
-looscid> calc
+nexos> calc
 
 Calculator 1.0
 Type a sum like 12 * (3 + 4) and press Enter.
@@ -49,8 +49,8 @@ calc> 12 * (3 + 4)
 - CMOS real-time clock (timestamps for notes)
 - A panic handler with a recursion lock that reports file and line
 
-**Looscid OS**
-- The `looscid>` shell: `help`, `clear`, `about`, `uptime`, `echo`, `mem`, `ls`, `cat`, `write`, `rm`, `home`, `store`, `apps`, `run`, `beep`, `mute`, `sound`, `theme`, `int3`, `reboot`. Typing an app's name (`notes`, `calc`, `clock`...) opens it
+**NexOS system**
+- The `nexos>` shell: `help`, `clear`, `about`, `uptime`, `echo`, `mem`, `ls`, `cat`, `write`, `rm`, `home`, `store`, `apps`, `run`, `beep`, `mute`, `sound`, `theme`, `int3`, `reboot`. Typing an app's name (`notes`, `calc`, `clock`...) opens it
 - **App Store** (`store`, or `s` from Home): a numbered, keyboard-driven catalog of apps that works offline. Commands: `list`, `info 8`, `install piano`, `uninstall piano`, `update`, `search music`, `installed`, `open piano`. Each also works straight from the shell (`store install piano`). A rising chime plays when an install finishes, a falling one on uninstall, and a low buzz on errors. Every status is said in words
 - **Home** (`home`): your installed apps, numbered. Type a number to open one
 - Built-in apps, all keyboard-only with the same keys (`h` help, `q` quit):
@@ -64,7 +64,7 @@ calc> 12 * (3 + 4)
   - **Guess the Number**: a ring-3 game. Find the number from 1 to 100 in 7 guesses; "higher" and "lower" come as words and as a rising or falling tone
 - Apps are described by small text manifests, so new apps (and the Linux edition later) share one format. See [docs/APPS.md](docs/APPS.md)
 - An in-memory filesystem (`ls`, `cat`, `write`, `rm`)
-- `userland/hello`: the first ring-3 Looscid program, embedded in the kernel image
+- `userland/hello`: the first ring-3 NexOS program, embedded in the kernel image
 - **Insomnia** (`insomnia` or `run insomnia`): an app for when you can't sleep, ported from the [Insomnia OS](https://github.com/2three1y/insomnia-os) web toy. It opens on a small menu:
   - **1 Sheep**: a moon, gently twinkling stars and a fence. Press Space and a sheep hops over; the counter has notes at milestones (try reaching #404). `T` stops the twinkling.
   - **2 Thoughts**: the 4am notepad. Type a thought and press Enter; it is saved with the time to `thoughts.txt`, so `cat thoughts.txt` in the shell shows it. Tab reads every saved thought back on the serial console.
@@ -90,7 +90,7 @@ You need: a Rust **nightly** toolchain (`rust-toolchain.toml` selects it automat
 sudo apt install qemu-system-x86 grub-pc-bin grub-common xorriso mtools
 curl https://sh.rustup.rs -sSf | sh     # if you don't have rustup yet
 
-make            # build userland + kernel + build/looscid.iso
+make            # build userland + kernel + build/nexos.iso
 make run        # boot in QEMU (VGA window, serial log in this terminal, PC speaker on your speakers)
 make serial     # boot headless: serial console only (screen readers)
 make wav        # headless, records the PC speaker to build/speaker.wav
@@ -134,17 +134,17 @@ nexos/
 │       ├── apps/insomnia.rs   # the Insomnia app: menu, sheep, sounds screen, goodnight
 │       ├── apps/thoughts.rs   # 4am Thoughts notepad (thoughts.txt)
 │       ├── apps/soundscape.rs # PC-speaker soundscapes (timer-driven sequencer)
-│       └── shell.rs      # the looscid> shell
-└── userland/             # Looscid ring-3 programs
+│       └── shell.rs      # the nexos> shell
+└── userland/             # NexOS ring-3 programs
     ├── user.ld           # linked at 0x4000_0000
-    ├── src/lib.rs        # `looscid` app API for ring-3 programs
+    ├── src/lib.rs        # `nexos` app API for ring-3 programs
     ├── src/main.rs       # `hello`
     └── src/bin/guess.rs  # Guess the Number
 ```
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md): first processes and a scheduler, then on-disk apps, then Looscid's workspace running as the first real app.
+See [ROADMAP.md](ROADMAP.md): first processes and a scheduler, then on-disk apps, then the Looscid workspace app running as the first real app.
 
 ## License
 

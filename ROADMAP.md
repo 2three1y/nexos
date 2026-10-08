@@ -1,7 +1,7 @@
 # Roadmap
 
-NexOS is the kernel. Looscid OS is the operating system layer on top of it.
-The long-term goal is to boot straight into Looscid, the local-first workspace.
+NexOS is the operating system and its kernel.
+The long-term goal is to boot straight into the Looscid workspace app, local-first.
 
 ## Done (v0.2): verified booting in QEMU
 
@@ -14,7 +14,7 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 - [x] System call interface (`int 0x80`: exit, write, uptime_ms, getpid)
 - [x] Ring-3 user program loaded from an ELF (`userland/` builds `hello`; the shell runs it with `run hello`)
 - [x] In-memory filesystem (`ls`, `cat`, `write`, `rm`)
-- [x] The `looscid>` shell, with an app registry as the launch hook for future apps
+- [x] The `nexos>` shell, with an app registry as the launch hook for future apps
 - [x] PC-speaker boot chime with `mute`
 - [x] Insomnia app (built in): moon + starfield, sheep counter, lullaby, Esc back to the shell
 
@@ -36,7 +36,11 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 - [x] Preinstalled: Notes, Calculator, Clock (timer, stopwatch, alarm), System Info, Insomnia, Hello
 - [x] In the store: Piano, Guess the Number
 - [x] Keyboard input and sound for user programs: `read_key`, `beep`, `sleep_ms` system calls
-- [x] `looscid` crate: the first version of the app API for ring-3 programs (Guess the Number uses it)
+- [x] `nexos` app API crate: the first version of the app API for ring-3 programs (Guess the Number uses it)
+
+## Done (v0.4.1): one name
+
+- [x] The OS is called NexOS everywhere: boot banner, `nexos>` prompt, about, apps and docs
 
 ## Next: the OS layer
 
@@ -54,26 +58,26 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 - [ ] Real audio (Sound Blaster 16 or Intel HD Audio) so Sounds can mix several layers with real volume sliders, like the web version
 - [ ] Save `thoughts.txt` to disk once there is an on-disk filesystem
 
-## Two editions of Looscid OS
+## Two editions of NexOS
 
-Looscid OS will ship in two editions that share one user-facing layer:
+NexOS will ship in two editions that share one user-facing layer:
 
-- **NexOS edition** (the priority): the full OS on our own kernel, this repo.
-- **Linux edition** (later): a distro on the Linux kernel, so people can install it on real laptops today.
+- **NexOS kernel edition** (the priority): the full OS on our own kernel, this repo.
+- **NexOS Linux edition** (later): a distro on the Linux kernel, so people can install it on real laptops today.
 
-Plan: the shell and apps target a small **Looscid API** (a syscall-like interface), with two backends: NexOS system calls and Linux/POSIX. Apps written once run on both editions.
+Plan: the shell and apps target a small **NexOS API** (a syscall-like interface), with two backends: NexOS system calls and Linux/POSIX. Apps written once run on both editions.
 
 - [x] App manifests both editions read (docs/APPS.md)
-- [ ] Define the full Looscid API (files, input, screen, sound, time, processes). Input, sound and time are in the `looscid` crate today
+- [ ] Define the full NexOS API (files, input, screen, sound, time, processes). Input, sound and time are in the `nexos` crate today
 - [x] NexOS backend for input, output, sound and time (syscalls)
 - [ ] Linux/POSIX backend, then a Linux-edition image
 
-## Then: Looscid
+## Then: an SDK and the Looscid workspace
 
-- [ ] Grow the `looscid` crate in `userland/` into a full SDK so apps can be written against Looscid OS
+- [ ] Grow the `nexos` crate in `userland/` into a full SDK so apps can be written against NexOS
 - [ ] Move the native apps (Notes, Calculator, Clock...) to ring 3 once there are file system calls
 - [ ] Networking (virtio-net) for sync between devices
-- [ ] Boot into the Looscid workspace as the first real app
+- [ ] Boot into the Looscid workspace app as the first real app
 
 ## Always
 

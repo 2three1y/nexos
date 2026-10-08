@@ -1,6 +1,6 @@
-# Looscid apps
+# NexOS apps
 
-How apps are described, installed and written on Looscid OS. The same format
+How apps are described, installed and written on NexOS. The same format
 is meant for the NexOS edition (this repo) and the Linux edition later.
 
 ## The pieces
@@ -13,7 +13,7 @@ is meant for the NexOS edition (this repo) and the Linux edition later.
 | Program registry | `kernel/src/user.rs` (`APPS`) | Maps a manifest's `entry` to code: a ring-3 ELF or a native kernel app |
 | App Store | `kernel/src/apps/store.rs` | List, info, install, uninstall, update, search, installed, Home |
 | Native app toolkit | `kernel/src/apps/ui.rs` | Shared helpers so every native app looks and sounds the same |
-| Ring-3 app API | `userland/src/lib.rs` (crate `looscid`) | System call wrappers for user-mode apps |
+| Ring-3 app API | `userland/src/lib.rs` (crate `nexos`) | System call wrappers for user-mode apps |
 
 There is no network yet, so the store is offline: every package in the
 catalog ships inside the OS image. "Install" checks the package and adds it to
@@ -27,7 +27,7 @@ Plain `key = value` lines. `#` starts a comment. Unknown keys are ignored, so
 newer manifests still load on older systems.
 
 ```
-# Looscid app manifest
+# NexOS app manifest
 id = piano
 name = Piano
 version = 1.0
@@ -129,27 +129,27 @@ pub fn run() {
 
 ## Writing a ring-3 app
 
-Ring-3 apps live in `userland/` and use the `looscid` crate. They can't touch
+Ring-3 apps live in `userland/` and use the `nexos` crate. They can't touch
 kernel memory or hardware; everything goes through system calls.
 
 ```rust
 #![no_std]
 #![no_main]
-use looscid::{beep, println, read_line, Buf};
+use nexos::{beep, println, read_line, Buf};
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    looscid::title("Echo", "1.0", "Type something.");
+    nexos::title("Echo", "1.0", "Type something.");
     let mut line: Buf<64> = Buf::new();
     while read_line("> ", &mut line) && line.as_str() != "q" {
         println!("You said {}.", line.as_str());
         beep(880, 60);
     }
-    looscid::exit(0)
+    nexos::exit(0)
 }
 
 #[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! { looscid::exit(1) }
+fn panic(_: &core::panic::PanicInfo) -> ! { nexos::exit(1) }
 ```
 
 Add a `[[bin]]` in `userland/Cargo.toml`, embed the binary in
@@ -173,7 +173,7 @@ Call number in RAX, arguments in RDI and RSI, result in RAX.
 ## The Linux edition
 
 The Linux edition will read the same `.app` manifests. `kind = elf` apps get
-a Linux backend for the `looscid` crate (write to stdout, read from a raw
+a Linux backend for the `nexos` crate (write to stdout, read from a raw
 terminal, beep through the sound card), and native apps move to user space.
 The store, the installed list and the app rules stay the same, so an app
 written once runs on both editions.
