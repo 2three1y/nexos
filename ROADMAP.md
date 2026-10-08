@@ -26,14 +26,26 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 - [x] Goodnight: a gentle chime and "It's now safe to turn off your brain", then back to the shell
 - [x] `make run` plays the PC speaker on your sound card; `make wav` records it
 
+## Done (v0.4): the App Store and built-in apps
+
+- [x] App manifest format (`kernel/catalog/*.app`, documented in [docs/APPS.md](docs/APPS.md)), shared with the Linux edition later
+- [x] App Store (`store`): list, info, install, uninstall, update, search, installed, open. Offline catalog bundled in the image, installed list in `system/installed.txt`
+- [x] Install, uninstall, error and alarm chimes on the PC speaker, always with words
+- [x] Home menu (`home`): installed apps, numbered
+- [x] Native app toolkit (`apps/ui.rs`): same layout and keys in every app (h help, q quit, Esc)
+- [x] Preinstalled: Notes, Calculator, Clock (timer, stopwatch, alarm), System Info, Insomnia, Hello
+- [x] In the store: Piano, Guess the Number
+- [x] Keyboard input and sound for user programs: `read_key`, `beep`, `sleep_ms` system calls
+- [x] `looscid` crate: the first version of the app API for ring-3 programs (Guess the Number uses it)
+
 ## Next: the OS layer
 
 - [ ] Per-process address spaces (a page table per program) and memory protection between programs
 - [ ] Processes + a preemptive scheduler on the timer interrupt
-- [ ] `syscall`/`sysret` fast path, more system calls (read, open, spawn, sleep)
-- [ ] Keyboard input for user programs (a `read` syscall)
+- [ ] `syscall`/`sysret` fast path, more system calls (open, read/write files, spawn)
 - [ ] A block device driver (ATA/virtio) and a simple on-disk filesystem
-- [ ] Load apps from disk instead of embedding them in the kernel
+- [ ] Load apps from disk instead of embedding them in the kernel, and keep the installed list on disk
+- [ ] App Store packages that carry their own program (install copies an ELF to disk), then a network catalog
 - [ ] Framebuffer graphics console (UEFI boot via GOP), keeping the serial mirror
 
 ## Future apps
@@ -51,13 +63,15 @@ Looscid OS will ship in two editions that share one user-facing layer:
 
 Plan: the shell and apps target a small **Looscid API** (a syscall-like interface), with two backends: NexOS system calls and Linux/POSIX. Apps written once run on both editions.
 
-- [ ] Define the Looscid API (files, input, screen, sound, time, processes)
-- [ ] NexOS backend (syscalls)
+- [x] App manifests both editions read (docs/APPS.md)
+- [ ] Define the full Looscid API (files, input, screen, sound, time, processes). Input, sound and time are in the `looscid` crate today
+- [x] NexOS backend for input, output, sound and time (syscalls)
 - [ ] Linux/POSIX backend, then a Linux-edition image
 
 ## Then: Looscid
 
-- [ ] A Looscid runtime/SDK in `userland/` so apps can be written against Looscid OS
+- [ ] Grow the `looscid` crate in `userland/` into a full SDK so apps can be written against Looscid OS
+- [ ] Move the native apps (Notes, Calculator, Clock...) to ring 3 once there are file system calls
 - [ ] Networking (virtio-net) for sync between devices
 - [ ] Boot into the Looscid workspace as the first real app
 
