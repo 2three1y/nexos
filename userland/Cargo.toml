@@ -1,12 +1,18 @@
-# NexOS userland crate.
+# Looscid userland — ring-3 programs for Looscid OS.
 #
-# User-space programs (shell, utilities, ELF-loaded apps) will live here.
-# Unlike the kernel, userland links against the kernel's syscall ABI and runs
-# in ring 3. For now this is a minimal placeholder so the workspace has a
-# clean kernel/userland boundary from day one.
+# Programs here are freestanding x86_64 ELF executables linked into the user
+# window (0x4000_0000). They talk to the NexOS kernel only through system
+# calls (`int 0x80`). The kernel embeds `nexos-userland` as the `hello` app.
 
 [package]
 name = "nexos-userland"
-version = "0.1.0"
-description = "NexOS userland — ring-3 programs"
-license = "MIT"
+description = "Looscid userland — ring-3 programs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "nexos-userland"
+path = "src/main.rs"
+test = false
+bench = false
