@@ -41,19 +41,22 @@ function ensureAudio() {
     if (!AC) return null;
     try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
     ac = new AC();
-    const limiter = ac.createDynamicsCompressor();
-    limiter.threshold.value = -8; limiter.knee.value = 0; limiter.ratio.value = 20;
-    limiter.attack.value = 0.002; limiter.release.value = 0.12;
-    const out = ac.createGain(); out.gain.value = 0.9;
-    master = ac.createGain();
-    sfx = ac.createGain(); sfx.gain.value = 1.0;
-    amb = ac.createGain(); amb.gain.value = 0.9;
-    sfx.connect(master); amb.connect(master); master.connect(limiter); limiter.connect(out); out.connect(ac.destination);
+    ({ master, sfx, amb } = makeChain(ac));
     applyVolume();
     unlockIOS();
   }
   if (ac.state === "suspended") ac.resume().catch(() => {});
   return ac;
+}
+// master -> limiter -> out; every sound (buttons, keys, chimes, soundscapes) goes through it.
+function makeChain(c) {
+  const limiter = c.createDynamicsCompressor();
+  limiter.threshold.value = -8; limiter.knee.value = 0; limiter.ratio.value = 20;
+  limiter.attack.value = 0.002; limiter.release.value = 0.12;
+  const out = c.createGain(); out.gain.value = 0.9;
+  const m = c.createGain(), s = c.createGain(), a = c.createGain(); s.gain.value = 1.0; a.gain.value = 0.9;
+  s.connect(m); a.connect(m); m.connect(limiter); limiter.connect(out); out.connect(c.destination);
+  return { master: m, sfx: s, amb: a };
 }
 // iOS: a silent media element moves Web Audio to the playback category, so the ring/silent switch doesn't mute it.
 function unlockIOS() {
@@ -67,14 +70,18 @@ function unlockIOS() {
     const p = a.play(); if (p && p.catch) p.catch(() => {});
   } catch (e) {}
 }
-function applyVolume() {
+const gainFor = (v) => (v / 100) * 1.6; // 100% is already loud; the limiter keeps the top clean
+function applyVolume(delay) {
   if (!master) return;
-  const g = muted ? 0 : (volume / 100) * 1.6; // 100% is already loud; the limiter keeps the top clean
-  master.gain.setTargetAtTime(g, ac.currentTime, 0.02);
+  const g = muted ? 0 : gainFor(volume);
+  master.gain.setTargetAtTime(g, ac.currentTime + (delay || 0), 0.02);
 }
+let tBase = null, voices = 0; // tBase is only set while rendering offline; voices counts every sound actually started
+const now = () => (tBase == null ? ac.currentTime : tBase);
 function tone(freq, at, dur, o = {}) {
   if (!ac || muted) return;
-  const t = ac.currentTime + (at || 0);
+  voices++;
+  const t = now() + (at || 0);
   const osc = ac.createOscillator(), g = ac.createGain();
   osc.type = o.type || "square"; osc.frequency.setValueAtTime(freq, t);
   if (o.slide) osc.frequency.exponentialRampToValueAtTime(o.slide, t + dur);
@@ -97,8 +104,112 @@ const SFX = {
   blip()      { tone(880, 0, 0.06, { type: "square", gain: 0.14 }); },
   note(m)     { tone(NOTE(m), 0, 0.42, { type: "triangle", gain: 0.42, release: 0.25 }); tone(NOTE(m + 12), 0, 0.25, { type: "sine", gain: 0.08 }); },
 };
-const sfxLog = []; // which store/system sound last played, for tests
-for (const k of Object.keys(SFX)) { const f = SFX[k]; SFX[k] = (...a) => { sfxLog.push(k); if (sfxLog.length > 50) sfxLog.shift(); return f(...a); }; }
+const sfxLog = []; // which sound last played (system sounds by name, button and key sounds as "ui:<id>"), for tests
+const logSfx = (k) => { sfxLog.push(k); if (sfxLog.length > 300) sfxLog.shift(); };
+for (const k of Object.keys(SFX)) { const f = SFX[k]; SFX[k] = (...a) => { logSfx(k); return f(...a); }; }
+
+/* ---------- button and key sounds: one family, every button its own voice ---------- */
+const noiseCache = new WeakMap();
+function whiteNoise() { let b = noiseCache.get(ac); if (!b) { const n = Math.floor(ac.sampleRate * 0.5); b = ac.createBuffer(1, n, ac.sampleRate); const d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; noiseCache.set(ac, b); } return b; }
+// A short burst of filtered noise: the "click" in key clicks, page flicks and whooshes.
+function click(freq, at, dur, gain, o = {}) {
+  if (!ac || muted) return;
+  voices++;
+  const t = now() + (at || 0), s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = whiteNoise(); f.type = "bandpass"; f.Q.value = o.q || 1.4; f.frequency.setValueAtTime(freq, t);
+  if (o.slide) f.frequency.exponentialRampToValueAtTime(o.slide, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(sfx); s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.02);
+}
+const SCALE = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76]; // 0..9 on a major scale
+const APP_MOTIF = { // each app's own two- or three-note signature, played by its button
+  notes: [[76, 81], "triangle"], calc: [[84, 84], "square"], clock: [[88, 83], "sine"], sysinfo: [[72, 79], "square"],
+  insomnia: [[79, 74], "sine", 0.14], hello: [[72, 76], "triangle"], piano: [[72, 76, 79], "triangle"], guess: [[81, 76, 81], "square"], morse: [[93, 93, 93], "sine"],
+};
+const UI = {
+  // typing (the "sound keys" setting turns these off; Enter's chime stays)
+  key()       { click(2600 + Math.random() * 900, 0, 0.014, 0.16, { q: 2 }); },
+  space()     { click(1100, 0, 0.022, 0.2, { q: 1.6 }); },
+  backspace() { click(1500, 0, 0.012, 0.14); tone(560, 0, 0.035, { type: "triangle", gain: 0.12, attack: 0.002, release: 0.02, slide: 380 }); },
+  tab()       { tone(2400, 0, 0.014, { type: "sine", gain: 0.07, attack: 0.002, release: 0.01 }); },
+  arrow()     { tone(1800, 0, 0.014, { type: "sine", gain: 0.06, attack: 0.002, release: 0.01 }); },
+  calcdigit(d){ click(2800, 0, 0.012, 0.12, { q: 2 }); tone(NOTE(SCALE[d] + 24), 0, 0.03, { type: "sine", gain: 0.08, attack: 0.002, release: 0.02 }); },
+  calcop()    { click(1700, 0, 0.012, 0.14); tone(NOTE(67), 0, 0.04, { type: "square", gain: 0.06, attack: 0.002, release: 0.02 }); tone(NOTE(74), 0.035, 0.03, { type: "square", gain: 0.05, attack: 0.002, release: 0.02 }); },
+  enter()     { click(800, 0, 0.03, 0.22, { slide: 300 }); tone(NOTE(84), 0.03, 0.18, { type: "sine", gain: 0.24, release: 0.14 }); tone(NOTE(96), 0.03, 0.1, { type: "sine", gain: 0.06 }); }, // carriage return + bell
+  // buttons
+  run()       { tone(NOTE(81), 0, 0.045, { type: "square", gain: 0.11 }); tone(NOTE(88), 0.045, 0.07, { type: "square", gain: 0.11 }); },
+  nav()       { click(2400, 0, 0.01, 0.12); tone(1200, 0, 0.025, { type: "triangle", gain: 0.16, attack: 0.002, release: 0.02 }); },
+  confirm()   { tone(NOTE(86), 0, 0.07, { type: "square", gain: 0.12 }); tone(NOTE(98), 0, 0.05, { type: "sine", gain: 0.05 }); },
+  back()      { tone(190, 0, 0.1, { type: "sine", gain: 0.42, attack: 0.002, release: 0.07, slide: 85 }); click(420, 0, 0.025, 0.25); },
+  on()        { tone(NOTE(72), 0, 0.05, { type: "triangle", gain: 0.22 }); tone(NOTE(79), 0.06, 0.08, { type: "triangle", gain: 0.22 }); },
+  off()       { tone(NOTE(79), 0, 0.05, { type: "triangle", gain: 0.22 }); tone(NOTE(72), 0.06, 0.08, { type: "triangle", gain: 0.22 }); },
+  up()        { tone(480, 0, 0.09, { type: "triangle", gain: 0.2, slide: 960 }); },
+  down()      { tone(960, 0, 0.09, { type: "triangle", gain: 0.2, slide: 480 }); },
+  danger()    { tone(NOTE(79), 0, 0.16, { type: "square", gain: 0.12, slide: NOTE(64) }); tone(NOTE(67), 0.17, 0.08, { type: "square", gain: 0.1 }); },
+  help()      { tone(NOTE(76), 0, 0.06, { type: "sine", gain: 0.24 }); tone(NOTE(83), 0.07, 0.1, { type: "sine", gain: 0.24, slide: NOTE(86) }); },
+  store()     { click(3000, 0, 0.012, 0.15); tone(NOTE(88), 0, 0.05, { type: "square", gain: 0.1 }); tone(NOTE(93), 0.05, 0.14, { type: "triangle", gain: 0.26, release: 0.1 }); },
+  apps()      { tone(1000, 0, 0.02, { type: "triangle", gain: 0.16 }); tone(1340, 0.045, 0.02, { type: "triangle", gain: 0.16 }); tone(1680, 0.09, 0.02, { type: "triangle", gain: 0.16 }); },
+  files()     { click(1800, 0, 0.06, 0.2, { slide: 3200 }); tone(700, 0.02, 0.03, { type: "triangle", gain: 0.1 }); },
+  about()     { tone(NOTE(79), 0, 0.28, { type: "sine", gain: 0.22, release: 0.22 }); tone(NOTE(91), 0, 0.16, { type: "sine", gain: 0.06 }); },
+  clear()     { click(600, 0, 0.18, 0.22, { slide: 5000, q: 0.8 }); },
+  fill()      { tone(1500, 0, 0.045, { type: "sine", gain: 0.12, slide: 2300 }); },
+  page()      { click(3400, 0, 0.05, 0.18, { slide: 1200 }); },
+  compose()   { click(4200, 0, 0.07, 0.1, { q: 3 }); tone(NOTE(84), 0, 0.06, { type: "sine", gain: 0.1, slide: NOTE(88) }); },
+  refresh()   { tone(700, 0, 0.05, { type: "triangle", gain: 0.14, slide: 1400 }); tone(700, 0.06, 0.05, { type: "triangle", gain: 0.14, slide: 1400 }); },
+  newgame()   { [76, 72, 79, 84].forEach((m, i) => tone(NOTE(m), i * 0.035, 0.03, { type: "square", gain: 0.09 })); },
+  ticktock()  { click(3200, 0, 0.012, 0.3, { q: 4 }); click(2100, 0.17, 0.012, 0.3, { q: 4 }); },
+  timerset()  { for (let i = 0; i < 4; i++) click(1600 + i * 400, i * 0.04, 0.012, 0.26, { q: 3 }); },
+  swstart()   { tone(NOTE(88), 0, 0.07, { type: "square", gain: 0.12 }); },
+  swstop()    { tone(NOTE(88), 0, 0.045, { type: "square", gain: 0.12 }); tone(NOTE(88), 0.08, 0.045, { type: "square", gain: 0.12 }); },
+  swreset()   { tone(NOTE(88), 0, 0.12, { type: "square", gain: 0.1, slide: NOTE(76) }); },
+  lap()       { click(2200, 0, 0.014, 0.34, { q: 3 }); tone(NOTE(93), 0, 0.03, { type: "square", gain: 0.08 }); },
+  equals()    { tone(NOTE(79), 0, 0.06, { type: "triangle", gain: 0.24 }); tone(NOTE(84), 0.065, 0.13, { type: "triangle", gain: 0.24, release: 0.08 }); },
+  higher()    { tone(880, 0, 0.08, { type: "square", gain: 0.14, slide: 1320 }); },
+  lower()     { tone(880, 0, 0.08, { type: "square", gain: 0.14, slide: 587 }); },
+  num(n)      { const m = SCALE[n % 10] + 12 + 12 * Math.floor(n / 10); click(2600, 0, 0.008, 0.1); tone(NOTE(m), 0, 0.06, { type: "triangle", gain: 0.26, attack: 0.003, release: 0.04 }); },
+  pick(v)     { tone(300 * Math.pow(5, (Math.min(100, Math.max(1, v)) - 1) / 99), 0, 0.06, { type: "square", gain: 0.11 }); }, // guess buttons: low numbers sound low
+  read(n)     { click(3400, 0, 0.05, 0.18, { slide: 1200 }); tone(NOTE(SCALE[(n - 1) % 10] + 12), 0.03, 0.05, { type: "sine", gain: 0.14 }); },
+  app(id)     { const [ns, type, gap] = APP_MOTIF[id] || [[72, 79], "triangle"]; const g = gap || 0.07; ns.forEach((m, i) => tone(NOTE(m), i * g, i === ns.length - 1 ? 0.1 : g * 0.8, { type, gain: type === "square" ? 0.11 : 0.22 })); },
+  vol(v)      { tone(300 + v * 6, 0, 0.06, { type: "sine", gain: 0.2 }); }, // pitch follows the slider; loudness follows the volume itself
+};
+const KEY_IDS = new Set(["key", "space", "backspace", "tab", "arrow", "calcdigit", "calcop"]);
+let keySounds = load("key_sounds", true), lastKeyAt = 0;
+// play(id, arg): every button and key sound goes through here, so each is logged by id and follows mute, volume and the limiter.
+function play(id, arg) {
+  if (KEY_IDS.has(id)) { if (!keySounds) return; const t = performance.now(); if (t - lastKeyAt < 15) return; lastKeyAt = t; }
+  logSfx("ui:" + id + (arg !== undefined ? ":" + arg : ""));
+  if (!ac || muted) return;
+  try { UI[id](arg); } catch (e) {}
+}
+// Which sound a quick button makes, from its label and command.
+function soundFor(label, cmd, isFill) {
+  const l = label.toLowerCase(), c = (cmd || "").trim().toLowerCase();
+  let m;
+  if (isFill) return ["fill"];
+  if (c === "q" || /^quit/.test(l) || l === "skip" || l === "back" || l === "cancel") return ["back"];
+  if (c === "h" || c === "help") return ["help"];
+  if ((m = label.match(/^(\d+)\.\s/))) {
+    return ["num", +m[1]];
+  }
+  if ((m = label.match(/^Guess (\d+)$/))) return ["pick", +m[1]];
+  if ((m = label.match(/^Read (\d+)$/))) return ["read", +m[1]];
+  if (/^(uninstall|delete)\b/.test(l) || l === "cancel timer") return ["danger"];
+  if ((m = label.match(/^Open (.+)$/))) { const a = catalog.find((x) => x.name === m[1]); return a ? ["app", a.id] : ["confirm"]; }
+  if (/^(install|update)\b/.test(l) || c === "ans * 2" || c === "s" || c === "r" && mode && mode.label === "Piano") return ["confirm"];
+  if (!mode) { const a = catalog.find((x) => x.id === c); if (a) return ["app", a.id]; }
+  if (c === "sound on" || c === "sound off") return null; // the mute toggle plays its own up/down pair
+  if (c === "+") return ["up"];
+  if (c === "-") return ["down"];
+  if (c === "store") return ["store"];
+  if (c === "apps" || c === "installed") return ["apps"];
+  if (c === "ls") return ["files"];
+  if (c === "about") return ["about"];
+  if (c === "clear") return ["clear"];
+  if (/^timer /.test(c)) return ["timerset"];
+  if (c === "n") return ["newgame"];
+  if (c === "r") return ["refresh"];
+  return ["nav"];
+}
 let booted = false;
 function gesture() { ensureAudio(); if (!booted) { booted = true; SFX.boot(); } }
 
@@ -350,9 +461,9 @@ const Notes = {
     const t = raw.trim();
     if (this.writing) { this.writing = false; if (!t) { line("Cancelled. Nothing saved."); return; } return addNote(t); }
     const m = t.match(/^(\S+)\s*(.*)$/) || ["", "", ""], w = m[1].toLowerCase(), arg = m[2];
-    if (w === "1" || w === "l" || w === "list") return listNotes();
-    if (w === "2" || w === "n" || w === "new") { if (arg) return addNote(arg); this.writing = true; line("Type your note and press Enter. Leave it empty to cancel."); return; }
-    if (w === "r" || w === "read") { const i = +arg - 1; if (!notes[i]) return err("No note number " + (arg || "given") + "."); line("Note " + (i + 1) + ": " + notes[i].text); return; }
+    if (w === "1" || w === "l" || w === "list") { play("page"); return listNotes(); }
+    if (w === "2" || w === "n" || w === "new") { if (arg) return addNote(arg); this.writing = true; play("compose"); line("Type your note and press Enter. Leave it empty to cancel."); return; }
+    if (w === "r" || w === "read") { const i = +arg - 1; if (!notes[i]) return err("No note number " + (arg || "given") + "."); play("read", i + 1); line("Note " + (i + 1) + ": " + notes[i].text); return; }
     if (w === "d" || w === "delete") { const i = +arg - 1; if (!notes[i]) return err("No note number " + (arg || "given") + "."); notes.splice(i, 1); save("notes", notes); SFX.uninstall(); line("Deleted note " + (i + 1) + ". " + plural(notes.length, "note") + " left.", "warm"); return; }
     err("Type 1 to list, 2 for a new note, or h for help.");
   },
@@ -387,7 +498,7 @@ const Calc = {
   label: "Calculator", prompt: "calc>",
   start() { line("Calculator. Type a sum like 12 * (3 + 4) and press Enter. " + STD); },
   help() { line("Calculator help:", "hi"); line("Use + - * / ^ (power), % and brackets."); line("ans is the last answer, like: ans * 2"); line("q: back to the shell."); },
-  input(raw) { const t = raw.trim(); if (!t) { line("Type a sum, like 2 + 2."); return; } try { const v = calcEval(t); if (!isFinite(v)) throw new Error("That number is too big"); lastAns = v; SFX.blip(); line(t + " = " + fmt(v), "hi"); } catch (e) { err(e.message + ". Try something like 12 * 3."); } },
+  input(raw) { const t = raw.trim(); if (!t) { line("Type a sum, like 2 + 2."); return; } try { const v = calcEval(t); if (!isFinite(v)) throw new Error("That number is too big"); lastAns = v; play("equals"); line(t + " = " + fmt(v), "hi"); } catch (e) { err(e.message + ". Try something like 12 * 3."); } },
   choices() { return [{ label: "Type a sum", fill: "" }, { label: "ans × 2", cmd: "ans * 2" }, { label: "Help", cmd: "h" }, { label: "Quit", cmd: "q" }]; },
 };
 
@@ -403,6 +514,7 @@ function parseDuration(t) {
 function startTimer(ms) {
   if (timer) clearTimeout(timer.id);
   timer = { end: Date.now() + ms, ms, id: setTimeout(() => { const d = timer.ms; timer = null; SFX.alarm(); say("Timer done: " + spoken(d) + ". Ding!", "hi"); renderChoices(); }, ms) };
+  play("timerset");
   line("Timer set for " + spoken(ms) + ". I'll chime when it's done, even if you leave the app.", "ok");
 }
 const Clock = {
@@ -411,13 +523,13 @@ const Clock = {
   help() { line("Clock help:", "hi"); line("1 or t: say the time and date."); line("2 or timer 5m: a timer. Use s, m or h, like timer 90s."); line("c: cancel the timer. left: time remaining."); line("3: start or stop the stopwatch. 4: lap. 5: reset."); line("q: back to the shell."); },
   input(raw) {
     const t = raw.trim().toLowerCase(), m = t.match(/^(\S+)\s*(.*)$/) || ["", "", ""], w = m[1], arg = m[2];
-    if (w === "1" || w === "t" || w === "time") { const d = new Date(); line("It's " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ", " + d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) + ".", "hi"); return; }
+    if (w === "1" || w === "t" || w === "time") { const d = new Date(); play("ticktock"); line("It's " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ", " + d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) + ".", "hi"); return; }
     if (w === "2" || w === "timer") { if (!arg) { line("How long? For example: timer 5m, timer 30s, timer 1h."); return; } const ms = parseDuration(arg); if (!ms || ms > 86400000) return err("I couldn't read " + arg + ". Try timer 5m."); return startTimer(ms); }
     if (w === "c" || w === "cancel") { if (!timer) { line("No timer is running."); return; } clearTimeout(timer.id); timer = null; SFX.uninstall(); line("Timer cancelled."); return; }
     if (w === "left") { line(timer ? spoken(timer.end - Date.now()) + " left." : "No timer is running."); return; }
-    if (w === "3" || w === "sw" || w === "stopwatch") { if (sw.running) { sw.acc = swNow(); sw.running = false; SFX.blip(); line("Stopwatch stopped at " + spoken(sw.acc) + ".", "hi"); } else { sw.start = Date.now(); sw.running = true; SFX.blip(); line(sw.acc ? "Stopwatch resumed." : "Stopwatch started.", "ok"); } return; }
-    if (w === "4" || w === "lap") { if (!sw.running) { line("Start the stopwatch first with 3."); return; } sw.laps++; SFX.blip(); line("Lap " + sw.laps + ": " + spoken(swNow()) + "."); return; }
-    if (w === "5" || w === "reset") { sw = { start: 0, acc: 0, running: false, laps: 0 }; line("Stopwatch reset to zero."); return; }
+    if (w === "3" || w === "sw" || w === "stopwatch") { if (sw.running) { sw.acc = swNow(); sw.running = false; play("swstop"); line("Stopwatch stopped at " + spoken(sw.acc) + ".", "hi"); } else { sw.start = Date.now(); sw.running = true; play("swstart"); line(sw.acc ? "Stopwatch resumed." : "Stopwatch started.", "ok"); } return; }
+    if (w === "4" || w === "lap") { if (!sw.running) { line("Start the stopwatch first with 3."); return; } sw.laps++; play("lap"); line("Lap " + sw.laps + ": " + spoken(swNow()) + "."); return; }
+    if (w === "5" || w === "reset") { sw = { start: 0, acc: 0, running: false, laps: 0 }; play("swreset"); line("Stopwatch reset to zero."); return; }
     if (/^\d/.test(t)) { const ms = parseDuration(t); if (ms) return startTimer(ms); }
     err("Type 1 for the time, 2 for a timer, 3 for the stopwatch, or h for help.");
   },
@@ -561,8 +673,8 @@ const Guess = {
     if (!/^\d+$/.test(t) || g < 1 || g > 100) return err("Type a whole number from 1 to 100.");
     this.tries++;
     if (g === this.n) { SFX.win(); line(g + " is right! You got it in " + plural(this.tries, "try").replace("trys", "tries") + ". Type n to play again.", "ok"); this.newGame(); return; }
-    if (g < this.n) { this.lo = Math.max(this.lo, g + 1); SFX.blip(); line(g + ": higher. Between " + this.lo + " and " + this.hi + "."); }
-    else { this.hi = Math.min(this.hi, g - 1); SFX.blip(); line(g + ": lower. Between " + this.lo + " and " + this.hi + "."); }
+    if (g < this.n) { this.lo = Math.max(this.lo, g + 1); play("higher"); line(g + ": higher. Between " + this.lo + " and " + this.hi + "."); }
+    else { this.hi = Math.min(this.hi, g - 1); play("lower"); line(g + ": lower. Between " + this.lo + " and " + this.hi + "."); }
   },
   choices() {
     const mid = Math.floor((this.lo + this.hi) / 2), q1 = Math.floor((this.lo + mid) / 2), q3 = Math.ceil((mid + this.hi) / 2);
@@ -603,7 +715,7 @@ function launch(id) {
 /* ---------- shell ---------- */
 const HELP = [
   ["help", "this list"], ["ls", "list files"], ["cat file", "show a file"], ["write file text", "save a file"], ["rm file", "delete a file"],
-  ["apps", "your installed apps"], ["store", "the App Store"], ["sound", "on, off, test, or a volume like sound 120"],
+  ["apps", "your installed apps"], ["store", "the App Store"], ["sound", "on, off, test, list, keys on or off, or a volume like sound 120"],
   ["name", "set what I call you, or name clear"], ["about", "about NexOS"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
 ];
 function shell(raw) {
@@ -636,6 +748,7 @@ function shell(raw) {
       line("NexOS Web " + VERSION + ". This is a web twin of NexOS, not the real kernel.", "hi");
       line("The real NexOS kernel is written in Rust for 64-bit x86 PCs, and runs in QEMU or on real hardware.");
       line("This page mirrors the NexOS v0.4 shell, App Store and apps in JavaScript. It runs offline, and saves only on this device.");
+      line("Every button and key has its own short sound. Type sound list to hear them described, or sound keys off to silence just the typing clicks.");
       line("Source: github.com/2three1y/nexos", "info"); return;
     case "uptime": line("Up for " + spoken(Date.now() - bootTime) + "."); return;
     case "echo": line(arg); return;
@@ -661,18 +774,38 @@ function soundCmd(w, arg) {
   const n = parseInt(w === "volume" ? a : a.replace(/^(vol|volume)\s*/, ""), 10);
   if (!isNaN(n)) { setVolume(n, true); return; }
   if (a === "stop") { stopAmbient(); line("Ambient sound stopped."); return; }
-  line("Sound is " + (muted ? "muted" : "on") + ", volume " + volume + " percent. Use sound on, sound off, sound test, or sound 120 (0 to 150).");
+  const k = a.match(/^keys?\s*(on|off)?$/);
+  if (k) { if (k[1]) setKeySounds(k[1] === "on", true); else line("Typing clicks are " + (keySounds ? "on" : "off") + ". Use sound keys on, or sound keys off."); return; }
+  if (a === "list" || a === "s") { SOUND_LIST.forEach((x, i) => line((i ? "" : "Sounds: ") + x)); return; }
+  line("Sound is " + (muted ? "muted" : "on") + ", volume " + volume + " percent, typing clicks " + (keySounds ? "on" : "off") + ". Use sound on, sound off, sound test, sound keys on or off, sound list, or sound 120 (0 to 150).");
 }
 function setMuted(m, speak) {
-  muted = !!m; save("muted", muted); applyVolume(); if (muted) stopAmbient();
+  m = !!m;
+  if (m && !muted && speak !== "silent") play("off"); // the down pair plays, then sound fades out
+  muted = m; save("muted", muted); applyVolume(muted ? 0.16 : 0); if (muted) stopAmbient();
   muteBtn.setAttribute("aria-pressed", String(muted)); muteBtn.textContent = muted ? "Muted" : "Mute";
   if (speak) line(muted ? "Sound off." : "Sound on.", "ok");
-  if (!muted && speak !== "silent") SFX.blip();
+  if (!muted && speak !== "silent") play("on");
+}
+const SOUND_LIST = [
+  "Numbered buttons: a soft note that rises with the number, 1 low to 9 high.",
+  "Each app's button: that app's own little tune.",
+  "Run: a bright double blip. Enter: a typewriter return and bell.",
+  "Help: a rising question. App Store: a register ding. My apps: three clicks. Files: a paper flick. About: a soft bell. Clear screen: a whoosh.",
+  "Install and Update buttons: a bright blip. Uninstall and Delete: a falling tone. Quit, Back and Skip: a low thunk.",
+  "Sound on: up two notes. Sound off: down two notes. Octave up and down: a slide up or down.",
+  "Typing: a soft key click, a deeper space bar, a tick for Backspace, and a faint tick for Tab and the arrow keys. In the Calculator, digits are tuned and operators click twice.",
+  "Apps: Clock has a tick tock, a timer wind up, and stopwatch start, stop, lap and reset beeps. Notes flicks a page. Guess the Number slides up for higher and down for lower.",
+  "Store and system sounds stay the same: rising chime for install, falling pair for uninstall, low double buzz for errors.",
+];
+function setKeySounds(on, speak) {
+  keySounds = !!on; save("key_sounds", keySounds); keysEl.checked = keySounds;
+  if (speak) { line("Typing clicks " + (keySounds ? "on" : "off") + ".", "ok"); play(keySounds ? "on" : "off"); }
 }
 function setVolume(n, speak) {
   volume = Math.max(0, Math.min(150, Math.round(n / 5) * 5)); save("volume", volume); applyVolume();
   volEl.value = volume; volOut.textContent = volume + "%"; volEl.setAttribute("aria-valuetext", volume ? volume + " percent" : "silent");
-  if (speak) { SFX.blip(); line("Volume " + volume + " percent.", "ok"); }
+  if (speak) { play("vol", volume); line("Volume " + volume + " percent.", "ok"); }
 }
 
 /* ---------- choices (touch buttons) ---------- */
@@ -705,9 +838,10 @@ function renderChoices(focusLabel) {
 choicesEl.addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   gesture();
-  if (b.dataset.note !== undefined) { mode && mode.key && mode.key(b.dataset.note); return; }
+  if (b.dataset.note !== undefined) { mode && mode.key && mode.key(b.dataset.note); return; } // piano keys keep their notes
+  const label = b.textContent, snd = soundFor(label, b.dataset.cmd, b.dataset.fill !== undefined);
+  if (snd) play(snd[0], snd[1]);
   if (b.dataset.fill !== undefined) { input.value = b.dataset.fill; input.focus(); return; }
-  const label = b.textContent;
   run(b.dataset.cmd);
   renderChoices(label);
 });
@@ -726,8 +860,10 @@ function run(raw) {
   flush(shown);
   renderChoices();
 }
+let enterKey = false;
 form.addEventListener("submit", (e) => {
   e.preventDefault(); gesture();
+  play(enterKey ? "enter" : "run"); enterKey = false;
   const raw = input.value; input.value = "";
   if (raw.trim()) { history.push(raw); if (history.length > 50) history.shift(); }
   hIdx = history.length;
@@ -735,17 +871,32 @@ form.addEventListener("submit", (e) => {
   input.focus();
 });
 input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.isComposing) enterKey = true;
+  if (/^Arrow/.test(e.key) && !e.altKey && !e.metaKey && !e.ctrlKey) play("arrow");
   if (e.key === "ArrowUp" && history.length) { e.preventDefault(); hIdx = Math.max(0, hIdx - 1); input.value = history[hIdx] || ""; }
   else if (e.key === "ArrowDown" && history.length) { e.preventDefault(); hIdx = Math.min(history.length, hIdx + 1); input.value = history[hIdx] || ""; }
   else if (mode && mode.keyMode && !e.ctrlKey && !e.metaKey && !e.altKey && input.value === "" && /^[0-9]$/.test(e.key)) { gesture(); if (mode.key(e.key)) e.preventDefault(); }
 });
 document.addEventListener("keydown", () => ensureAudio(), { once: true });
+document.addEventListener("keydown", (e) => { if (e.key === "Tab" && !e.altKey && !e.metaKey && !e.ctrlKey) play("tab"); });
+// Typing clicks come from the input event, so on-screen keyboards (iPhone, VoiceOver typing) click too.
+input.addEventListener("input", (e) => {
+  const it = e.inputType || "insertText", d = e.data || "";
+  if (/^delete/.test(it)) return play("backspace");
+  if (!/^insert/.test(it) || it === "insertLineBreak") return;
+  const ch = d.slice(-1);
+  if (ch === " ") return play("space");
+  if (mode && mode.label === "Calculator") { if (/[0-9]/.test(ch)) return play("calcdigit", +ch); if (/[-+*\/x×÷^%()=]/.test(ch)) return play("calcop"); }
+  play("key");
+});
 
 /* ---------- sound controls ---------- */
 const volEl = $("#vol"), volOut = $("#vol-out"), muteBtn = $("#mute");
 volEl.addEventListener("input", () => { setVolume(+volEl.value, false); });
-volEl.addEventListener("change", () => { gesture(); if (!muted) SFX.blip(); });
+volEl.addEventListener("change", () => { gesture(); play("vol", volume); });
 muteBtn.addEventListener("click", () => { gesture(); setMuted(!muted, false); say(muted ? "Sound off." : "Sound on.", "ok"); renderChoices(); });
+const keysEl = $("#key-sounds"); keysEl.checked = keySounds;
+keysEl.addEventListener("change", () => { gesture(); setKeySounds(keysEl.checked, false); play(keySounds ? "on" : "off"); });
 $("#test-sound").addEventListener("click", () => { gesture(); if (muted) { say("Sound is muted. Press Mute to turn it back on."); return; } SFX.install(); });
 setVolume(volume, false); setMuted(muted, "silent");
 
@@ -759,5 +910,16 @@ function greetLine() {
 greetLine();
 renderChoices();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
-window.__looscid = { run, sfxLog, get mode() { return mode ? mode.label : "Shell"; }, get audio() { return !!ac; } };
+// Render button/key sounds offline through the same limiter chain (used for the demo WAV and the peak test).
+async function renderOffline(items, opts = {}) {
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, rate = opts.rate || 44100, gap = opts.gap || 0.6;
+  const off = new OAC(1, Math.ceil(rate * (items.length * gap + 0.5)), rate);
+  const saved = { ac, master, sfx, amb, muted, tBase };
+  try {
+    ac = off; ({ master, sfx, amb } = makeChain(off)); master.gain.value = gainFor(opts.volume == null ? 100 : opts.volume); muted = false;
+    items.forEach(([id, arg], i) => { tBase = i * gap + 0.05; (UI[id] || SFX[id])(arg); });
+  } finally { ({ ac, master, sfx, amb, muted, tBase } = saved); }
+  return off.startRendering();
+}
+window.__looscid = { run, sfxLog, renderOffline, soundIds: Object.keys(UI), get voices() { return voices; }, get keySounds() { return keySounds; }, get mode() { return mode ? mode.label : "Shell"; }, get audio() { return !!ac; } };
 })();
