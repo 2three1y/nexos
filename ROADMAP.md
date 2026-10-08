@@ -58,6 +58,16 @@ The long-term goal is to boot straight into the Looscid workspace app, local-fir
 - [ ] App Store packages that carry their own program (install copies an ELF to disk), then a network catalog
 - [ ] Framebuffer graphics console (UEFI boot via GOP), keeping the serial mirror
 
+## Planned: native braille display support
+
+Not built yet. Today NexOS is readable with a braille display only through a host screen reader: the browser version and the serial console pass text to VoiceOver or another screen reader, which drives the display. On real hardware with no host, NexOS cannot talk to a braille display yet.
+
+- [ ] Native braille display support: talk directly to refreshable braille displays (USB HID braille, then serial) so NexOS on real hardware is usable without a host screen reader
+- [ ] Show the shell output in braille: the current line and command output, with panning keys to move through longer text
+- [ ] Use the display's own keys as input: Enter sends the command, the cursor routing keys move the cursor
+- [ ] Grade 1 (uncontracted) braille tables first, then contracted braille and more languages
+- [ ] Needs a USB stack (xHCI/EHCI + HID) first; serial displays can come earlier on the existing serial driver
+
 ## Future apps
 
 - [ ] Insomnia as a ring-3 app: move it out of the kernel once user programs can read the keyboard and draw
