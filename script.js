@@ -1,10 +1,19 @@
 /* NexOS Web: a browser twin of the NexOS operating system. MIT licensed. No network requests. */
 (() => {
 "use strict";
-const VERSION = "0.4";
+const VERSION = "0.5";
 const $ = (s) => document.querySelector(s);
-const logEl = $("#log"), form = $("#cmd-form"), input = $("#cmd"), choicesEl = $("#choices");
+const form = $("#cmd-form"), appForm = $("#app-form");
+let logEl = $("#log"), input = $("#cmd"), choicesEl = $("#choices");
 const modeNameEl = $("#mode-name"), promptEl = $("#prompt"), labelText = $("#cmd-label-text");
+const appH = $("#app-h"), appInputLabel = $("#app-input-label"), launcherEl = $("#launcher");
+// Two places an app can run: the Terminal (command line) and the app window (buttons first).
+// Each keeps its own output, buttons, text field and current app.
+const CTX = {
+  terminal: { name: "terminal", log: $("#log"), choices: $("#choices"), input: $("#cmd"), mode: null, lastKey: "" },
+  app: { name: "app", log: $("#app-log"), choices: $("#app-choices"), input: $("#app-input"), mode: null, lastKey: "", appId: null },
+};
+let cur = CTX.terminal;
 const bootTime = Date.now();
 
 /* ---------- storage ---------- */
@@ -30,7 +39,8 @@ function flush(echo) {
   while (logEl.children.length > MAX_ENTRIES) logEl.removeChild(logEl.firstElementChild);
   logEl.scrollTop = logEl.scrollHeight;
 }
-function say(text, cls) { line(text, cls); flush(); } // standalone announcement (timers etc.)
+// standalone announcement (timers etc.); when its window is closed, the polite status line carries it instead
+function say(text, cls) { line(text, cls); flush(); if (logEl.closest("[hidden]")) { const s = document.querySelector("#status"); if (s) { s.textContent = ""; setTimeout(() => { s.textContent = text; }, 30); } } }
 
 /* ---------- sound (Web Audio, created on first gesture only) ---------- */
 let ac = null, master = null, sfx = null, amb = null;
@@ -150,6 +160,10 @@ const UI = {
   store()     { click(3000, 0, 0.012, 0.15); tone(NOTE(88), 0, 0.05, { type: "square", gain: 0.1 }); tone(NOTE(93), 0.05, 0.14, { type: "triangle", gain: 0.26, release: 0.1 }); },
   apps()      { tone(1000, 0, 0.02, { type: "triangle", gain: 0.16 }); tone(1340, 0.045, 0.02, { type: "triangle", gain: 0.16 }); tone(1680, 0.09, 0.02, { type: "triangle", gain: 0.16 }); },
   files()     { click(1800, 0, 0.06, 0.2, { slide: 3200 }); tone(700, 0.02, 0.03, { type: "triangle", gain: 0.1 }); },
+  terminal()  { click(5200, 0, 0.02, 0.12, { q: 2 }); [60, 67, 72].forEach((m, i) => tone(NOTE(m), 0.01 + i * 0.05, 0.04, { type: "square", gain: 0.1, attack: 0.002, release: 0.02 })); tone(NOTE(84), 0.17, 0.05, { type: "square", gain: 0.07 }); }, // CRT power-on blip, then a cursor beep
+  aboutapp()  { tone(NOTE(72), 0, 0.06, { type: "square", gain: 0.1 }); tone(NOTE(79), 0.07, 0.3, { type: "sine", gain: 0.22, release: 0.24 }); tone(NOTE(91), 0.07, 0.18, { type: "sine", gain: 0.06 }); }, // the old System Info blip into the About bell
+  settings()  { click(2000, 0, 0.012, 0.22, { q: 3 }); click(2600, 0.05, 0.012, 0.2, { q: 3 }); tone(NOTE(76), 0.05, 0.05, { type: "triangle", gain: 0.14 }); }, // two dial clicks
+  home()      { tone(NOTE(84), 0, 0.05, { type: "triangle", gain: 0.18 }); tone(NOTE(79), 0.05, 0.05, { type: "triangle", gain: 0.18 }); tone(NOTE(72), 0.1, 0.09, { type: "triangle", gain: 0.2, release: 0.07 }); }, // three steps down to Home
   about()     { tone(NOTE(79), 0, 0.28, { type: "sine", gain: 0.22, release: 0.22 }); tone(NOTE(91), 0, 0.16, { type: "sine", gain: 0.06 }); },
   clear()     { click(600, 0, 0.18, 0.22, { slide: 5000, q: 0.8 }); },
   fill()      { tone(1500, 0, 0.045, { type: "sine", gain: 0.12, slide: 2300 }); },
@@ -193,6 +207,9 @@ function soundFor(label, cmd, isFill) {
   }
   if ((m = label.match(/^Guess (\d+)$/))) return ["pick", +m[1]];
   if ((m = label.match(/^Read (\d+)$/))) return ["read", +m[1]];
+  if (/^Read \S/.test(label)) return ["page"];
+  if (c === "sysinfo" || c === "about" || c === "open sysinfo" || /^about this nexos$/.test(l) || /^open about this nexos$/.test(l)) return ["aboutapp"];
+  if (c === "terminal") return ["terminal"];
   if (/^(uninstall|delete)\b/.test(l) || l === "cancel timer") return ["danger"];
   if ((m = label.match(/^Open (.+)$/))) { const a = catalog.find((x) => x.name === m[1]); return a ? ["app", a.id] : ["confirm"]; }
   if (/^(install|update)\b/.test(l) || c === "ans * 2" || c === "s" || c === "r" && mode && mode.label === "Piano") return ["confirm"];
@@ -202,7 +219,7 @@ function soundFor(label, cmd, isFill) {
   if (c === "-") return ["down"];
   if (c === "store") return ["store"];
   if (c === "apps" || c === "installed") return ["apps"];
-  if (c === "ls") return ["files"];
+  if (c === "ls" || c === "files") return ["files"];
   if (c === "about") return ["about"];
   if (c === "clear") return ["clear"];
   if (/^timer /.test(c)) return ["timerset"];
@@ -280,12 +297,12 @@ let fs = load("fs", null) || Object.assign({}, DEFAULT_FS);
 const saveFs = () => save("fs", fs);
 
 /* ---------- App Store catalog ---------- */
-const CATALOG_REV = 4;
+const CATALOG_REV = 5;
 const DEFAULT_CATALOG = [
   { id: "notes",    name: "Notes",           version: "1.0", size: "12 KB", category: "Productivity", pre: true,  desc: "Write, read and delete short notes. Saved on this device." },
   { id: "calc",     name: "Calculator",      version: "1.0", size: "8 KB",  category: "Utilities",    pre: true,  desc: "Type a sum like 12 * (3 + 4) and hear the answer." },
   { id: "clock",    name: "Clock",           version: "1.0", size: "10 KB", category: "Utilities",    pre: true,  desc: "Time, a countdown timer with an alarm chime, and a stopwatch." },
-  { id: "sysinfo",  name: "System Info",     version: "1.0", size: "4 KB",  category: "Utilities",    pre: true,  desc: "Version, uptime, apps, storage and sound status." },
+  { id: "sysinfo",  name: "About this NexOS", version: "1.1", size: "6 KB", category: "System",      pre: true,  system: true, desc: "What NexOS is, its version, system info (browser, screen, memory, uptime, apps, sound) and credits. Part of the system.", notes: "System Info and About are now one app." },
   { id: "insomnia", name: "Insomnia",        version: "1.3", size: "20 KB", category: "Relax",        pre: true,  desc: "Count sheep, read sleepy thoughts, and play rain, fan, crickets, an old PC, or a lullaby.", notes: "Every sheep now gets its own line, and the lullaby has a softer ending." },
   { id: "hello",    name: "Hello",           version: "1.0", size: "2 KB",  category: "Developer",    pre: true,  desc: "Says hello. In the real NexOS it is the first program that runs in ring 3." },
   { id: "piano",    name: "Piano",           version: "1.0", size: "7 KB",  category: "Music",        pre: false, desc: "A keyboard piano. Keys 1 to 8 play a scale and each note is said by name. Plus and minus change octave, s plays Ode to Joy, r replays." },
@@ -302,7 +319,7 @@ saveInstalled();
 const appMeta = (id) => catalog.find((a) => a.id === id);
 const isInstalled = (id) => Object.prototype.hasOwnProperty.call(installed, id);
 const hasUpdate = (id) => isInstalled(id) && installed[id] !== appMeta(id).version;
-const ALIASES = { calculator: "calc", timer: "clock", stopwatch: "clock", "keyboard": "piano", "keyboard piano": "piano", info: "sysinfo", "system": "sysinfo", sheep: "insomnia", game: "guess", number: "guess" };
+const ALIASES = { calculator: "calc", timer: "clock", stopwatch: "clock", "keyboard": "piano", "keyboard piano": "piano", info: "sysinfo", "system": "sysinfo", "system info": "sysinfo", about: "sysinfo", "about this nexos": "sysinfo", sheep: "insomnia", game: "guess", number: "guess" };
 function findApp(word) {
   if (!word) return null;
   const w = word.toLowerCase().trim();
@@ -320,14 +337,27 @@ let mode = null; // null = shell; otherwise an app object
 function promptText() { return mode ? mode.prompt : "nexos>"; }
 function setMode(m) {
   mode = m;
+  if (cur === CTX.app) {
+    const name = m ? m.label : (appMeta(CTX.app.appId) || { name: "App" }).name;
+    appH.textContent = name; appInputLabel.textContent = "Type in " + name;
+    return;
+  }
   promptEl.textContent = promptText();
   labelText.textContent = m ? "Command, in " + m.label : "Command";
   modeNameEl.textContent = m ? m.label : "Shell";
 }
+let closeAfterRun = false;
 function quitApp(msg) {
   if (mode && mode.onQuit) mode.onQuit();
   setMode(null);
+  if (cur === CTX.app) { closeAfterRun = true; return; } // quitting in the app window goes back to Home
   line(msg || "Back to the nexos shell.", "dimt");
+}
+function useCtx(c) {
+  if (c === cur) return;
+  cur.mode = mode; cur.lastKey = lastChoiceKey;
+  cur = c; mode = c.mode; lastChoiceKey = c.lastKey;
+  logEl = c.log; choicesEl = c.choices; input = c.input;
 }
 const STD = "h for help, q to quit.";
 
@@ -432,6 +462,7 @@ function storeAction(act, a) {
   }
   if (act === "uninstall" || act === "remove") {
     if (!isInstalled(a.id)) { SFX.error(); line(a.name + " isn't installed."); return; }
+    if (a.system) { SFX.error(); line(a.name + " is part of the system, so it can't be uninstalled."); return; }
     delete installed[a.id]; saveInstalled(); SFX.uninstall();
     line("Uninstalled " + a.name + "." + (a.id === "notes" ? " Your notes are kept." : ""), "warm"); return;
   }
@@ -585,26 +616,84 @@ const Hello = {
   run() {
     line("Hello" + (userName ? ", " + userName : "") + "! I'm the Hello app.", "hi");
     line("In the real NexOS, Hello is the first NexOS program that runs in ring 3, as pid 1. Here in the web twin, it runs as JavaScript.");
-    line("Up for " + spoken(Date.now() - bootTime) + ". Back to the nexos shell.", "dimt");
+    line("Up for " + spoken(Date.now() - bootTime) + "." + (cur === CTX.terminal ? " Back to the nexos shell." : ""), "dimt");
   },
 };
 
 /* ---- System Info ---- */
 function storageBytes() { let n = 0; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith("looscid:")) n += k.length + (localStorage.getItem(k) || "").length; } } catch (e) {} return n * 2; }
-const SysInfo = {
-  label: "System Info", prompt: "sysinfo>",
-  start() { this.show(); line("r refreshes. " + STD, "dimt"); },
-  show() {
-    line("NexOS Web " + VERSION + ", a browser twin of the NexOS kernel.", "hi");
-    line("Uptime: " + spoken(Date.now() - bootTime) + ".");
-    line("Apps installed: " + Object.keys(installed).length + " of " + catalog.length + ".");
-    line("Files: " + Object.keys(fs).length + ". Notes: " + notes.length + ". Storage used: " + Math.max(1, Math.round(storageBytes() / 1024)) + " KB.");
-    line("Sound: " + (muted ? "muted" : "on, volume " + volume + " percent") + ". Ambient: " + (ambient ? AMBIENTS[ambient.id].name : "off") + ".");
-    line("Screen: " + window.innerWidth + " by " + window.innerHeight + ". " + (navigator.onLine ? "Online" : "Offline") + ", but this OS never uses the network.");
+function browserName() {
+  const u = navigator.userAgent || "";
+  const plat = /iPhone/.test(u) ? "iPhone" : /iPad/.test(u) ? "iPad" : /Android/.test(u) ? "Android" : /Mac OS X|Macintosh/.test(u) ? "Mac" : /Windows/.test(u) ? "Windows" : /CrOS/.test(u) ? "ChromeOS" : /Linux/.test(u) ? "Linux" : "an unknown system";
+  const v = (re) => { const m = u.match(re); return m ? " " + m[1] : ""; };
+  const b = /Edg\//.test(u) ? "Edge" + v(/Edg\/(\d+)/) : /OPR\//.test(u) ? "Opera" + v(/OPR\/(\d+)/) : /FxiOS/.test(u) ? "Firefox" + v(/FxiOS\/(\d+)/)
+    : /Firefox\//.test(u) ? "Firefox" + v(/Firefox\/(\d+)/) : /CriOS/.test(u) ? "Chrome" + v(/CriOS\/(\d+)/) : /Chrome\//.test(u) ? "Chrome" + v(/Chrome\/(\d+)/)
+    : /Safari\//.test(u) ? "Safari" + v(/Version\/(\d+(?:\.\d+)?)/) : "an unknown browser";
+  return b + " on " + plat;
+}
+// One source for About this NexOS: the window from Home, and the about and sysinfo commands.
+function aboutInfo() {
+  const appsN = catalog.filter((a) => isInstalled(a.id)).length;
+  const mem = navigator.deviceMemory ? "about " + navigator.deviceMemory + " GB, as reported by the browser" : "not reported by this browser";
+  const dpr = window.devicePixelRatio || 1;
+  return {
+    what: [
+      "NexOS Web " + VERSION + " is a web twin of NexOS. It is not the real kernel and not an emulator.",
+      "The real NexOS kernel, v0.5.0, is written in Rust and runs on 64-bit and 32-bit x86 PCs, in QEMU or on real hardware, and plays its sounds on the PC speaker. It can also boot for real in your browser, from the Boot the real kernel link on the Home screen (the real/ page).",
+      "This page mirrors the same nexos shell, App Store and apps in plain HTML and JavaScript. Use it with buttons from Home, or open Terminal for the command line.",
+      "Every button and key has its own short, classic-style sound. Everything stays on this device: no network requests and no tracking, and it works offline.",
+    ],
+    facts: [
+      ["Version", "NexOS Web " + VERSION + ", a web twin of NexOS v0.5.0"],
+      ["Browser", browserName()],
+      ["Screen", screen.width + " by " + screen.height + " pixels, window " + window.innerWidth + " by " + window.innerHeight + (dpr > 1 ? ", " + Math.round(dpr * 10) / 10 + " times density" : "")],
+      ["Memory", mem],
+      ["Processor cores", navigator.hardwareConcurrency ? String(navigator.hardwareConcurrency) : "not reported by this browser"],
+      ["Uptime", spoken(Date.now() - bootTime)],
+      ["Apps installed", appsN + " of " + catalog.length],
+      ["Files and notes", plural(Object.keys(fs).length, "file") + ", " + plural(notes.length, "note") + ", " + Math.max(1, Math.round(storageBytes() / 1024)) + " KB stored in this browser"],
+      ["Sound", (muted ? "muted" : "on") + ", volume " + volume + " percent, typing clicks " + (keySounds ? "on" : "off") + ", ambient " + (ambient ? AMBIENTS[ambient.id].name : "off")],
+      ["Network", (navigator.onLine ? "online" : "offline") + ", but NexOS Web never uses the network"],
+    ],
+    credits: [
+      "NexOS and NexOS Web are open source under the MIT license, made by the NexOS project.",
+      "Every sound is synthesized live with Web Audio. There are no recorded samples.",
+      "Source code and authors: github.com/2three1y/nexos",
+    ],
+  };
+}
+function printAbout() {
+  const a = aboutInfo();
+  line("About this NexOS", "hi");
+  a.what.forEach((t) => line(t));
+  line("System info:", "hi");
+  a.facts.forEach(([k, v]) => line(k + ": " + v + "."));
+  line("Credits:", "hi");
+  a.credits.forEach((t, i) => line(t, i === a.credits.length - 1 ? "info" : ""));
+  if (cur === CTX.terminal) line("Tip: About this NexOS is also an app on the Home screen.", "dimt");
+}
+const SysInfo = { label: "About this NexOS", oneShot: true, run() { printAbout(); } };
+
+/* ---- Files ---- */
+const Files = {
+  label: "Files", prompt: "files>", sel: null,
+  names() { return Object.keys(fs).sort(); },
+  start() { this.sel = null; line("Files.", "hi"); this.list(); line("Type a number to read a file, or a name and some text to save one, like: todo.txt buy milk. " + STD, "dimt"); },
+  list() { const f = this.names(); if (!f.length) { line("No files. Type a name and some text to save one."); return; } line(plural(f.length, "file") + ":"); f.forEach((n, i) => line((i + 1) + ". " + n)); },
+  help() { line("Files help:", "hi"); line("A number: read that file. l: list files."); line("name.txt and text: save a file. d and a number: delete that file."); line("q: quit."); },
+  input(raw) {
+    const t = raw.trim(), f = this.names(); let m;
+    if (!t || /^(l|list|ls)$/i.test(t)) { this.sel = null; return this.list(); }
+    if (/^\d+$/.test(t)) { const n = f[+t - 1]; if (!n) return err("There's no file number " + t + "."); this.sel = n; line(n + ":", "dimt"); line(fs[n]); return; }
+    if ((m = t.match(/^(?:d|delete|rm)\s+(\d+)$/i))) { const n = f[+m[1] - 1]; if (!n) return err("There's no file number " + m[1] + "."); delete fs[n]; saveFs(); this.sel = null; SFX.uninstall(); line("Deleted " + n + ".", "warm"); return; }
+    if ((m = t.match(/^(\S+)\s+([\s\S]+)$/))) return shell("write " + t);
+    err("To save a file, type a name and some text, like: todo.txt buy milk.");
   },
-  help() { line("System Info help:", "hi"); line("r: refresh. q: back to the shell."); },
-  input(raw) { const t = raw.trim().toLowerCase(); if (t === "r" || t === "" || t === "refresh") return this.show(); err("Type r to refresh, or q to quit."); },
-  choices() { return [{ label: "Refresh", cmd: "r" }, { label: "Help", cmd: "h" }, { label: "Quit", cmd: "q" }]; },
+  choices() {
+    const f = this.names(), c = f.slice(0, 8).map((n, i) => ({ label: "Read " + n, cmd: String(i + 1) }));
+    if (this.sel && f.includes(this.sel)) c.push({ label: "Delete " + this.sel, cmd: "d " + (f.indexOf(this.sel) + 1) });
+    return c.concat([{ label: "New file", fill: "new.txt " }, { label: "Help", cmd: "h" }, { label: "Quit", cmd: "q" }]);
+  },
 };
 
 /* ---- Insomnia ---- */
@@ -707,6 +796,7 @@ const Morse = {
 const APPS = { notes: Notes, calc: Calc, clock: Clock, piano: Piano, sysinfo: SysInfo, insomnia: Insomnia, hello: Hello, guess: Guess, morse: Morse };
 function launch(id) {
   const a = appMeta(id);
+  if (!a) return err("No app called " + id + ".");
   if (!isInstalled(id)) { err(a.name + " isn't installed. Get it with: store install " + id); return; }
   if (APPS[id].oneShot) { APPS[id].run(); return; }
   setMode(APPS[id]); APPS[id].start();
@@ -716,7 +806,7 @@ function launch(id) {
 const HELP = [
   ["help", "this list"], ["ls", "list files"], ["cat file", "show a file"], ["write file text", "save a file"], ["rm file", "delete a file"],
   ["apps", "your installed apps"], ["store", "the App Store"], ["sound", "on, off, test, list, keys on or off, or a volume like sound 120"],
-  ["name", "set what I call you, or name clear"], ["about", "about NexOS"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
+  ["name", "set what I call you, or name clear"], ["about or sysinfo", "About this NexOS: what it is, system info and credits"], ["files", "the Files app"], ["home", "close the terminal and go to the Home screen"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
 ];
 function shell(raw) {
   const t = raw.trim(); if (!t) { line("Type help to see commands."); return; }
@@ -744,12 +834,9 @@ function shell(raw) {
     }
     case "install": case "uninstall": case "update": { if (w === "update" && /^all$/i.test(arg)) return updateAll(); const a = findApp(arg); if (!a) return err("Which app? For example: " + w + " guess"); return storeAction(w, a); }
     case "sound": case "mute": case "unmute": case "volume": case "beep": return soundCmd(w, arg);
-    case "about": case "ver": case "version":
-      line("NexOS Web " + VERSION + ". This is a web twin of NexOS, not the real kernel.", "hi");
-      line("The real NexOS kernel is written in Rust for 64-bit x86 PCs, and runs in QEMU or on real hardware.");
-      line("This page mirrors the NexOS v0.4 shell, App Store and apps in JavaScript. It runs offline, and saves only on this device.");
-      line("Every button and key has its own short sound. Type sound list to hear them described, or sound keys off to silence just the typing clicks.");
-      line("Source: github.com/2three1y/nexos", "info"); return;
+    case "about": case "ver": case "version": case "sysinfo": printAbout(); return;
+    case "files": setMode(Files); Files.start(); return;
+    case "home": case "launcher": if (cur === CTX.terminal) { closeAfterRun = true; line("Going to the Home screen.", "dimt"); } return;
     case "uptime": line("Up for " + spoken(Date.now() - bootTime) + "."); return;
     case "echo": line(arg); return;
     case "name": {
@@ -791,7 +878,8 @@ const SOUND_LIST = [
   "Numbered buttons: a soft note that rises with the number, 1 low to 9 high.",
   "Each app's button: that app's own little tune.",
   "Run: a bright double blip. Enter: a typewriter return and bell.",
-  "Help: a rising question. App Store: a register ding. My apps: three clicks. Files: a paper flick. About: a soft bell. Clear screen: a whoosh.",
+  "Home screen: Terminal powers on like an old screen with a cursor beep. About this NexOS: a square blip into a soft bell. Sound settings: two dial clicks. Close and Escape: a low thunk back to Home.",
+  "Help: a rising question. App Store: a register ding. My apps: three clicks. Files: a paper flick. Clear screen: a whoosh.",
   "Install and Update buttons: a bright blip. Uninstall and Delete: a falling tone. Quit, Back and Skip: a low thunk.",
   "Sound on: up two notes. Sound off: down two notes. Octave up and down: a slide up or down.",
   "Typing: a soft key click, a deeper space bar, a tick for Backspace, and a faint tick for Tab and the arrow keys. In the Calculator, digits are tuned and operators click twice.",
@@ -812,11 +900,15 @@ function setVolume(n, speak) {
 function shellChoices() {
   const c = [{ label: "Help", cmd: "help" }, { label: "App Store", cmd: "store" }, { label: "My apps", cmd: "apps" }];
   catalog.filter((a) => isInstalled(a.id)).forEach((a) => c.push({ label: a.name, cmd: a.id }));
-  return c.concat([{ label: "Files", cmd: "ls" }, { label: "About", cmd: "about" }, { label: muted ? "Sound on" : "Sound off", cmd: muted ? "sound on" : "sound off" }, { label: "Clear screen", cmd: "clear" }]);
+  return c.concat([{ label: "Files", cmd: "files" }, { label: muted ? "Sound on" : "Sound off", cmd: muted ? "sound on" : "sound off" }, { label: "Clear screen", cmd: "clear" }]);
 }
 let lastChoiceKey = "";
+function appIdleChoices() {
+  const a = appMeta(CTX.app.appId);
+  return (a ? [{ label: "Run " + a.name + " again", cmd: a.id }] : []).concat([{ label: "Close", cmd: "q" }]);
+}
 function renderChoices(focusLabel) {
-  const list = mode ? mode.choices() : shellChoices();
+  const list = mode ? mode.choices() : cur === CTX.app ? appIdleChoices() : shellChoices();
   const key = (mode ? mode.label : "shell") + "|" + list.map((c) => c.label).join("|");
   if (key !== lastChoiceKey) {
     lastChoiceKey = key;
@@ -835,52 +927,62 @@ function renderChoices(focusLabel) {
     (same || btns[0] || input).focus();
   }
 }
-choicesEl.addEventListener("click", (e) => {
+function onChoice(e) {
   const b = e.target.closest("button"); if (!b) return;
   gesture();
   if (b.dataset.note !== undefined) { mode && mode.key && mode.key(b.dataset.note); return; } // piano keys keep their notes
   const label = b.textContent, snd = soundFor(label, b.dataset.cmd, b.dataset.fill !== undefined);
   if (snd) play(snd[0], snd[1]);
   if (b.dataset.fill !== undefined) { input.value = b.dataset.fill; input.focus(); return; }
-  run(b.dataset.cmd);
+  const before = mode;
+  if (run(b.dataset.cmd, true)) return; // the app closed and focus went back to Home
+  if (cur === CTX.app && mode && mode !== before) { renderChoices(); appH.focus(); return; } // a new app opened in the window: announce its name
   renderChoices(label);
-});
+}
+CTX.terminal.choices.addEventListener("click", onChoice);
+CTX.app.choices.addEventListener("click", onChoice);
 
 /* ---------- running a command ---------- */
 const history = []; let hIdx = 0;
-function run(raw) {
+// Returns true when the command closed the view (then focus is already on Home).
+function run(raw, fromButton) {
   const shown = raw === "" ? "(Enter)" : raw;
   try {
     const t = raw.trim().toLowerCase();
     if (mode && mode !== NameAsk && (t === "q" || t === "quit" || t === "exit")) { const msg = mode.quitMsg ? mode.quitMsg() : null; quitApp(msg); }
+    else if (!mode && cur === CTX.app && (t === "q" || t === "quit" || t === "exit" || t === "close")) closeAfterRun = true;
     else if (mode && mode !== NameAsk && (t === "h" || t === "help" || t === "?")) mode.help();
     else if (mode) mode.input(raw);
     else shell(raw);
   } catch (e) { line("Something went wrong: " + e.message, "err"); }
+  if (closeAfterRun) { closeAfterRun = false; pending = null; closeView(!fromButton); return true; }
   flush(shown);
   renderChoices();
+  return false;
 }
 let enterKey = false;
-form.addEventListener("submit", (e) => {
+function onSubmit(e) {
   e.preventDefault(); gesture();
   play(enterKey ? "enter" : "run"); enterKey = false;
   const raw = input.value; input.value = "";
   if (raw.trim()) { history.push(raw); if (history.length > 50) history.shift(); }
   hIdx = history.length;
-  run(raw);
+  if (run(raw)) return;
   input.focus();
-});
-input.addEventListener("keydown", (e) => {
+}
+form.addEventListener("submit", onSubmit);
+appForm.addEventListener("submit", onSubmit);
+function onKeydown(e) {
   if (e.key === "Enter" && !e.isComposing) enterKey = true;
   if (/^Arrow/.test(e.key) && !e.altKey && !e.metaKey && !e.ctrlKey) play("arrow");
   if (e.key === "ArrowUp" && history.length) { e.preventDefault(); hIdx = Math.max(0, hIdx - 1); input.value = history[hIdx] || ""; }
   else if (e.key === "ArrowDown" && history.length) { e.preventDefault(); hIdx = Math.min(history.length, hIdx + 1); input.value = history[hIdx] || ""; }
   else if (mode && mode.keyMode && !e.ctrlKey && !e.metaKey && !e.altKey && input.value === "" && /^[0-9]$/.test(e.key)) { gesture(); if (mode.key(e.key)) e.preventDefault(); }
-});
+}
 document.addEventListener("keydown", () => ensureAudio(), { once: true });
 document.addEventListener("keydown", (e) => { if (e.key === "Tab" && !e.altKey && !e.metaKey && !e.ctrlKey) play("tab"); });
 // Typing clicks come from the input event, so on-screen keyboards (iPhone, VoiceOver typing) click too.
-input.addEventListener("input", (e) => {
+function onInput(e) {
   const it = e.inputType || "insertText", d = e.data || "";
   if (/^delete/.test(it)) return play("backspace");
   if (!/^insert/.test(it) || it === "insertLineBreak") return;
@@ -888,27 +990,119 @@ input.addEventListener("input", (e) => {
   if (ch === " ") return play("space");
   if (mode && mode.label === "Calculator") { if (/[0-9]/.test(ch)) return play("calcdigit", +ch); if (/[-+*\/x×÷^%()=]/.test(ch)) return play("calcop"); }
   play("key");
-});
+}
+for (const el of [CTX.terminal.input, CTX.app.input]) { el.addEventListener("keydown", onKeydown); el.addEventListener("input", onInput); }
 
 /* ---------- sound controls ---------- */
 const volEl = $("#vol"), volOut = $("#vol-out"), muteBtn = $("#mute");
 volEl.addEventListener("input", () => { setVolume(+volEl.value, false); });
 volEl.addEventListener("change", () => { gesture(); play("vol", volume); });
-muteBtn.addEventListener("click", () => { gesture(); setMuted(!muted, false); say(muted ? "Sound off." : "Sound on.", "ok"); renderChoices(); });
+const soundStatus = $("#sound-status");
+function soundSay(t) { soundStatus.textContent = ""; setTimeout(() => { soundStatus.textContent = t; }, 30); }
+muteBtn.addEventListener("click", () => { gesture(); setMuted(!muted, false); soundSay(muted ? "Sound off." : "Sound on."); renderChoices(); });
 const keysEl = $("#key-sounds"); keysEl.checked = keySounds;
 keysEl.addEventListener("change", () => { gesture(); setKeySounds(keysEl.checked, false); play(keySounds ? "on" : "off"); });
-$("#test-sound").addEventListener("click", () => { gesture(); if (muted) { say("Sound is muted. Press Mute to turn it back on."); return; } SFX.install(); });
+$("#test-sound").addEventListener("click", () => { gesture(); if (muted) { soundSay("Sound is muted. Press Mute to turn it back on."); return; } SFX.install(); });
 setVolume(volume, false); setMuted(muted, "silent");
+
+/* ---------- Home, views and focus ---------- */
+// Home is a list of app buttons. Each opens a view: focus moves to the view's heading on open,
+// and back to the button that opened it on close (Close button, or Escape).
+const VIEWS = { home: $("#home"), terminal: $("#terminal-view"), app: $("#app-view"), about: $("#about-view"), sound: $("#sound-view") };
+const HEADS = { home: $("#home-h"), terminal: $("#term-h"), app: appH, about: $("#about-h"), sound: $("#sound-h") };
+let view = "home", opener = null;
+function launcherItems() {
+  const c = [{ id: "terminal", label: "Terminal", desc: "command line" }, { id: "store", label: "App Store", desc: catalog.length + " apps" }];
+  catalog.filter((a) => isInstalled(a.id) && a.id !== "sysinfo").forEach((a) => c.push({ id: "app:" + a.id, label: a.name }));
+  c.push({ id: "files", label: "Files" }, { id: "sound", label: "Sound settings" }, { id: "about", label: "About this NexOS", desc: "and system info" });
+  return c;
+}
+const staticLaunch = [...launcherEl.querySelectorAll("li.static")]; // plain links kept from the page (Boot the real kernel)
+function renderLauncher() {
+  launcherEl.replaceChildren(...launcherItems().map((it) => {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.type = "button"; b.dataset.open = it.id; b.textContent = it.label;
+    if (it.desc) { const s = document.createElement("span"); s.className = "desc"; s.textContent = ", " + it.desc; b.appendChild(s); }
+    li.appendChild(b); return li;
+  }), ...staticLaunch);
+}
+function launcherSound(id) {
+  if (id === "terminal") return ["terminal"]; if (id === "store") return ["store"]; if (id === "files") return ["files"];
+  if (id === "sound") return ["settings"]; if (id === "about") return ["aboutapp"];
+  return ["app", id.slice(4)];
+}
+function show(v) {
+  for (const k in VIEWS) VIEWS[k].hidden = k !== v;
+  view = v; document.body.dataset.view = v;
+  if (v === "home" || v === "terminal") save("view", v);
+}
+let termGreeted = false;
+function openView(id, focus = true) {
+  opener = id;
+  if (id === "terminal") {
+    useCtx(CTX.terminal); show("terminal");
+    if (!termGreeted) { termGreeted = true; greetLine(); }
+    setMode(mode); renderChoices();
+  } else if (id === "about") { renderAbout(); show("about"); }
+  else if (id === "sound") { show("sound"); }
+  else {
+    useCtx(CTX.app); CTX.app.log.replaceChildren(); pending = null;
+    const appId = id === "store" ? "store" : id === "files" ? "files" : id.slice(4);
+    CTX.app.appId = appId === "store" || appId === "files" ? null : appId;
+    mode = null;
+    if (appId === "store") { setMode(Store); Store.start(); }
+    else if (appId === "files") { setMode(Files); Files.start(); }
+    else { setMode(null); launch(appId); }
+    flush(); lastChoiceKey = ""; renderChoices();
+    show("app");
+  }
+  if (focus) HEADS[view].focus();
+}
+function closeView(silent) {
+  if (view === "home") return;
+  if (view === "app") { if (mode && mode.onQuit) mode.onQuit(); mode = null; CTX.app.mode = null; useCtx(CTX.terminal); }
+  if (!silent) play("back");
+  show("home"); renderLauncher();
+  const b = opener && launcherEl.querySelector('[data-open="' + opener + '"]');
+  (b || HEADS.home).focus();
+}
+launcherEl.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-open]"); if (!b) return;
+  gesture(); const s = launcherSound(b.dataset.open); play(s[0], s[1]);
+  openView(b.dataset.open);
+});
+$(".skip").addEventListener("click", (e) => { e.preventDefault(); HEADS[view].focus(); }); // skip to the open view's heading
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-close]"); if (!b) return; gesture(); closeView(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && view !== "home" && !e.defaultPrevented) { e.preventDefault(); gesture(); closeView(); } });
+
+/* ---- About this NexOS window ---- */
+const aboutBody = $("#about-body"), aboutStatus = $("#about-status");
+function el(tag, text, attrs) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; for (const k in (attrs || {})) n.setAttribute(k, attrs[k]); return n; }
+function renderAbout() {
+  const a = aboutInfo(), frag = document.createDocumentFragment();
+  frag.appendChild(el("h3", "What NexOS is"));
+  a.what.forEach((t) => frag.appendChild(el("p", t)));
+  frag.appendChild(el("h3", "System info", { id: "sysinfo-h" }));
+  const dl = el("dl", undefined, { class: "facts", "aria-labelledby": "sysinfo-h" });
+  a.facts.forEach(([k, v]) => { const d = el("div"); d.appendChild(el("dt", k)); d.appendChild(el("dd", v)); dl.appendChild(d); });
+  frag.appendChild(dl);
+  frag.appendChild(el("h3", "Credits"));
+  a.credits.slice(0, -1).forEach((t) => frag.appendChild(el("p", t)));
+  const p = el("p", "Source code and authors: "), link = el("a", "github.com/2three1y/nexos", { href: "https://github.com/2three1y/nexos" }); p.appendChild(link); frag.appendChild(p);
+  const r = el("p", "Try the actual kernel: "); r.appendChild(el("a", "the real NexOS kernel in your browser", { href: "real/" })); frag.appendChild(r);
+  aboutBody.replaceChildren(frag);
+}
+$("#about-refresh").addEventListener("click", () => { gesture(); play("refresh"); renderAbout(); aboutStatus.textContent = ""; setTimeout(() => { aboutStatus.textContent = "System info refreshed. Uptime " + spoken(Date.now() - bootTime) + "."; }, 30); });
 
 /* ---------- start ---------- */
 function greetLine() {
-  const boot = logEl.querySelector(".boot");
+  const boot = CTX.terminal.log.querySelector(".boot");
   if (!boot) return;
   if (!named()) { setMode(NameAsk); const p = document.createElement("p"); p.className = "hi"; p.textContent = "What should I call you? Type a name and press Enter, or type skip."; boot.appendChild(p); }
   else if (userName) { const p = document.createElement("p"); p.className = "hi"; p.textContent = "Welcome back, " + userName + "."; boot.appendChild(p); }
 }
-greetLine();
-renderChoices();
+renderLauncher();
+if (load("view", "home") === "terminal") openView("terminal", false); else show("home");
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 // Render button/key sounds offline through the same limiter chain (used for the demo WAV and the peak test).
 async function renderOffline(items, opts = {}) {
@@ -921,5 +1115,5 @@ async function renderOffline(items, opts = {}) {
   } finally { ({ ac, master, sfx, amb, muted, tBase } = saved); }
   return off.startRendering();
 }
-window.__looscid = { run, sfxLog, renderOffline, soundIds: Object.keys(UI), get voices() { return voices; }, get keySounds() { return keySounds; }, get mode() { return mode ? mode.label : "Shell"; }, get audio() { return !!ac; } };
+window.__looscid = { run, sfxLog, renderOffline, soundIds: Object.keys(UI), get voices() { return voices; }, get keySounds() { return keySounds; }, get mode() { return mode ? mode.label : "Shell"; }, get view() { return view; }, openView, closeView, get audio() { return !!ac; } };
 })();
