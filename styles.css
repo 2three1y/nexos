@@ -97,3 +97,25 @@ h2:focus{outline:3px solid var(--focus);outline-offset:2px}
 #sound-toggle .tri{color:var(--yellow);display:inline-block;margin-right:.4rem;transition:transform .15s}
 #sound-toggle[aria-expanded="true"] .tri{transform:rotate(90deg)}
 #sound-panel{margin-top:.5rem;border-top:2px solid var(--line);padding-top:.25rem}
+
+/* Beat style picker */
+#beat-genre,#ec-format{font:inherit;background:#000;color:var(--hi);border:2px solid var(--cyan);border-radius:4px;padding:.45rem .5rem;min-height:44px;max-width:100%}
+#beat-genre:focus,#ec-format:focus,#ec-input:focus{outline:3px solid var(--focus);outline-offset:2px}
+
+/* Apps with their own window: Insomnia OS and Meme Projects (their sites' own files, framed), Easyconvert (native) */
+.src-link{margin:0 0 .4rem}
+.src-link a{display:inline-flex;align-items:center;min-height:44px;font-weight:700}
+.app-frame{display:block;width:100%;height:100vh;height:100svh;min-height:520px;max-height:1000px;margin-top:.6rem;border:2px solid var(--line);border-radius:4px;background:#000}
+#easyconvert-view .ec-field{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;margin:.6rem 0}
+#easyconvert-view .ec-field label{color:var(--yellow);min-width:9rem}
+#ec-input{font:inherit;color:var(--hi);max-width:100%;min-height:44px}
+#ec-input::file-selector-button{font:inherit;background:var(--panel);color:var(--hi);border:2px solid var(--cyan);border-radius:4px;padding:.5rem .8rem;min-height:44px;margin-right:.6rem;cursor:pointer}
+.ec-files{list-style:none;margin:0;padding:0;display:grid;gap:.6rem}
+.ec-files li{border:1px solid var(--line);border-radius:4px;padding:.5rem}
+.ec-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.ec-actions .ec-name{flex:1 1 12rem;text-align:left;overflow-wrap:anywhere;min-width:0}
+.ec-files pre{margin:.5rem 0 0;padding:.5rem;background:#050514;border:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-height:16rem;overflow-y:auto;overflow-x:hidden;font:inherit;font-size:.9rem;color:var(--fg)}
+.ec-files pre:focus{outline:3px solid var(--focus);outline-offset:2px}
+.ec-status{min-height:1.5em;color:var(--green);margin:.6rem 0 0}
+.ec-list > p{margin:0;color:var(--dim)}
+@media (max-width:480px){ #easyconvert-view .ec-field label{flex-basis:100%} }

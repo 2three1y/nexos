@@ -1,7 +1,7 @@
 /* NexOS Web: a browser twin of the NexOS operating system. MIT licensed. No network requests. */
 (() => {
 "use strict";
-const VERSION = "0.5";
+const VERSION = "0.6";
 const $ = (s) => document.querySelector(s);
 const form = $("#cmd-form"), appForm = $("#app-form");
 let logEl = $("#log"), input = $("#cmd"), choicesEl = $("#choices");
@@ -142,7 +142,7 @@ function click(freq, at, dur, gain, o = {}) {
 const SCALE = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76]; // 0..9 on a major scale
 const APP_MOTIF = { // each app's own two- or three-note signature, played by its button
   notes: [[76, 81], "triangle"], calc: [[84, 84], "square"], clock: [[88, 83], "sine"], sysinfo: [[72, 79], "square"],
-  insomnia: [[79, 74], "sine", 0.14], hello: [[72, 76], "triangle"], piano: [[72, 76, 79], "triangle"], guess: [[81, 76, 81], "square"], morse: [[93, 93, 93], "sine"],
+  insomnia: [[79, 74], "sine", 0.14], easyconvert: [[67, 74, 79], "square", 0.06], memes: [[84, 79, 88], "triangle", 0.09], hello: [[72, 76], "triangle"], piano: [[72, 76, 79], "triangle"], guess: [[81, 76, 81], "square"], morse: [[93, 93, 93], "sine"],
 };
 const UI = {
   // typing (the "sound keys" setting turns these off; Enter's chime stays)
@@ -305,29 +305,32 @@ let fs = load("fs", null) || Object.assign({}, DEFAULT_FS);
 const saveFs = () => save("fs", fs);
 
 /* ---------- App Store catalog ---------- */
-const CATALOG_REV = 5;
+const CATALOG_REV = 6;
 const DEFAULT_CATALOG = [
   { id: "notes",    name: "Notes",           version: "1.0", size: "12 KB", category: "Productivity", pre: true,  desc: "Write, read and delete short notes. Saved on this device." },
   { id: "calc",     name: "Calculator",      version: "1.0", size: "8 KB",  category: "Utilities",    pre: true,  desc: "Type a sum like 12 * (3 + 4) and hear the answer." },
   { id: "clock",    name: "Clock",           version: "1.0", size: "10 KB", category: "Utilities",    pre: true,  desc: "Time, a countdown timer with an alarm chime, and a stopwatch." },
   { id: "sysinfo",  name: "About this NexOS", version: "1.1", size: "6 KB", category: "System",      pre: true,  system: true, desc: "What NexOS is, its version, system info (browser, screen, memory, uptime, apps, sound) and credits. Part of the system.", notes: "System Info and About are now one app." },
-  { id: "insomnia", name: "Insomnia",        version: "1.3", size: "20 KB", category: "Relax",        pre: true,  desc: "Count sheep, read sleepy thoughts, and play rain, fan, crickets, an old PC, or a lullaby.", notes: "Every sheep now gets its own line, and the lullaby has a softer ending." },
+  { id: "insomnia", name: "Insomnia OS",     version: "1.3", size: "70 KB", category: "Relax",        pre: true,  window: true, desc: "The full Insomnia OS, the same as its own site: a soundscape mixer, Sheep.exe, the 4am notepad, a starfield screensaver and Shut Down.", notes: "Now the full Insomnia OS, with over 60 sheep lines that never repeat until every one has been used." },
   { id: "hello",    name: "Hello",           version: "1.0", size: "2 KB",  category: "Developer",    pre: true,  desc: "Says hello. In the real NexOS it is the first program that runs in ring 3." },
   { id: "piano",    name: "Piano",           version: "1.0", size: "7 KB",  category: "Music",        pre: false, desc: "A keyboard piano. Keys 1 to 8 play a scale and each note is said by name. Plus and minus change octave, s plays Ode to Joy, r replays." },
   { id: "guess",    name: "Guess the Number", version: "1.0", size: "5 KB", category: "Games",        pre: false, desc: "I pick a number from 1 to 100. You guess, I say higher or lower." },
   { id: "morse",    name: "Morse Code",      version: "1.0", size: "6 KB",  category: "Learning",     pre: false, desc: "Type a word and hear it beeped in Morse code, with the dits and dahs spelled out." },
+  { id: "easyconvert", name: "Easyconvert",  version: "1.0", size: "100 KB", category: "Utilities",   pre: true,  window: true, desc: "Convert text files to TXT, DOCX, JSON, HTML and more, right in your browser. Nothing is uploaded." },
+  { id: "memes",    name: "Meme Projects",   version: "1.0", size: "60 KB", category: "Fun",          pre: true,  window: true, desc: "The Meme Projects chaos tool suite, the same as its own site." },
 ];
 let catalog = load("catalog_rev", 0) === CATALOG_REV ? load("catalog", DEFAULT_CATALOG) : DEFAULT_CATALOG;
 save("catalog", catalog); save("catalog_rev", CATALOG_REV);
 let installed = load("installed", null);
 if (!installed) { installed = {}; for (const a of catalog) if (a.pre) installed[a.id] = a.version; installed.insomnia = "1.2"; }
 if (!load("mig4", false)) { if (!("hello" in installed)) installed.hello = "1.0"; save("mig4", true); }
+if (!load("mig6", false)) { for (const id of ["easyconvert", "memes"]) if (!(id in installed)) installed[id] = "1.0"; save("mig6", true); }
 const saveInstalled = () => save("installed", installed);
 saveInstalled();
 const appMeta = (id) => catalog.find((a) => a.id === id);
 const isInstalled = (id) => Object.prototype.hasOwnProperty.call(installed, id);
 const hasUpdate = (id) => isInstalled(id) && installed[id] !== appMeta(id).version;
-const ALIASES = { calculator: "calc", timer: "clock", stopwatch: "clock", "keyboard": "piano", "keyboard piano": "piano", info: "sysinfo", "system": "sysinfo", "system info": "sysinfo", about: "sysinfo", "about this nexos": "sysinfo", sheep: "insomnia", game: "guess", number: "guess" };
+const ALIASES = { calculator: "calc", timer: "clock", stopwatch: "clock", "keyboard": "piano", "keyboard piano": "piano", info: "sysinfo", "system": "sysinfo", "system info": "sysinfo", about: "sysinfo", "about this nexos": "sysinfo", sheep: "insomnia", "insomnia os": "insomnia", "easy convert": "easyconvert", convert: "easyconvert", converter: "easyconvert", meme: "memes", memeprojects: "memes", "meme projects": "memes", game: "guess", number: "guess" };
 function findApp(word) {
   if (!word) return null;
   const w = word.toLowerCase().trim();
@@ -706,13 +709,74 @@ const Files = {
 
 /* ---- Insomnia ---- */
 let sheep = load("sheep", 0);
+// The same lines as Insomnia OS, dealt from a shuffle bag (see countSheep): none repeats until all have been used.
 const SHEEP_LINES = [
-  "Sheep {n} hops the fence.", "Sheep {n} clears it with style.", "Sheep {n} trots over, yawning.", "Sheep {n} bounces across. Boing.",
-  "Sheep {n} tiptoes over the fence.", "Sheep {n} leaps, and lands softly.", "Sheep {n} floats over like a cloud.", "Sheep {n} makes it. Barely.",
-  "Sheep {n} jumps and says baa.", "Sheep {n} waves at you mid-jump.", "Sheep {n} does a tiny twirl over the fence.", "Sheep {n} hops over in fuzzy slippers.",
-  "Sheep {n} sails across, very sleepy.", "Sheep {n} skips over, humming.", "Sheep {n} goes over backwards, show-off.", "Sheep {n} wobbles over the fence.",
+  "Sheep {n} jumped the fence.",
+  "Sheep {n} cleared it with style.",
+  "Sheep {n} tiptoed over the fence.",
+  "Sheep {n} hopped over in perfect silence.",
+  "Sheep {n} did a little spin mid-air. Showing off.",
+  "Sheep {n} tripped, got up, pretended nothing happened.",
+  "Sheep {n} said baa in a classic system voice.",
+  "Sheep {n} jumped wearing tiny noise-cancelling headphones.",
+  "Sheep {n} brought you a warm glass of milk.",
+  "Sheep {n} found the new ramp and rolled over.",
+  "Sheep {n} jumped, then synced locally. No cloud needed.",
+  "Sheep {n} floated over like a little cloud.",
+  "Sheep {n} whispered you've got this.",
+  "Sheep {n} started a group chat with the other sheep. It's on mute.",
+  "Sheep {n} stopped to stretch first. Safety.",
+  "Sheep {n} jumped in slow motion, very dramatic.",
+  "Sheep {n} wore pajamas for the occasion.",
+  "Sheep {n} yawned halfway over. Contagious.",
+  "Sheep {n} cleared the fence and took a bow.",
+  "Sheep {n} brought a tiny pillow, just in case.",
+  "Sheep {n} landed softly on a pile of laundry.",
+  "Sheep {n} paused to look at the moon, then jumped.",
+  "Sheep {n} hummed a lullaby on the way over.",
+  "Sheep {n} jumped and forgot why. Classic 3 AM.",
+  "Sheep {n} counted you back, to be fair.",
+  "Sheep {n} politely asked if you're sleepy yet.",
+  "Sheep {n} rebooted mid-jump. Back online.",
+  "Sheep {n} jumped over the fence and a small puddle.",
+  "Sheep {n} left a note: sleep well.",
+  "Sheep {n} jumped in fuzzy slippers.",
+  "Sheep {n} cleared the fence on the second try. Growth.",
+  "Sheep {n} flopped over like a beanbag.",
+  "Sheep {n} brought snacks for the sheep union.",
+  "Sheep {n} did a quiet little moonwalk over.",
+  "Sheep {n} jumped and set an alarm for noon.",
+  "Sheep {n} wrapped itself in a blanket burrito, then rolled over.",
+  "Sheep {n} turned the brightness down for you.",
+  "Sheep {n} jumped over, then tucked in the fence.",
+  "Sheep {n} read the fence a bedtime story first.",
+  "Sheep {n} drifted over like it had nowhere to be.",
+  "Sheep {n} hopped over with a cup of chamomile.",
+  "Sheep {n} wanted to say the stars look nice tonight.",
+  "Sheep {n} jumped and whispered, almost there.",
+  "Sheep {n} practiced its jump all day for this.",
+  "Sheep {n} tiptoed so the crickets wouldn't wake.",
+  "Sheep {n} jumped over the fence and a sleeping cat.",
+  "Sheep {n} made it over and immediately napped.",
+  "Sheep {n} cleared the fence with zero lag.",
+  "Sheep {n} jumped in airplane mode.",
+  "Sheep {n} carried a tiny night light.",
+  "Sheep {n} jumped and did a small, sleepy wave.",
+  "Sheep {n} slid under the fence instead. Creative.",
+  "Sheep {n} jumped while softly saying goodnight.",
+  "Sheep {n} brought the fluffiest wool in the flock.",
+  "Sheep {n} hopped over and dimmed the stars a little.",
+  "Sheep {n} took the scenic route over.",
+  "Sheep {n} jumped, then closed 47 browser tabs.",
+  "Sheep {n} cleared it like a pro gymnast. 9.8.",
+  "Sheep {n} gave the fence a gentle high five.",
+  "Sheep {n} jumped over and fluffed your pillow.",
+  "Sheep {n} floated across on a dream.",
+  "Sheep {n} hopped over in a cozy sweater.",
+  "Sheep {n} jumped to the rhythm of the rain.",
+  "Sheep {n} jumped and said the night is on your side.",
 ];
-const MILESTONES = { 1: "Sheep 1 clears the fence. Gold medal.", 10: "10 sheep. They've started a group chat.", 25: "25 sheep. The fence is filing a complaint.", 50: "50 sheep. Half of them are also awake.", 100: "100 sheep! The sheep are now counting you.", 250: "250 sheep. That's a whole wool startup.", 404: "Sheep 404 not found. It went to sleep. Maybe you should too.", 500: "500 sheep. Okay, legend. Try closing your eyes?" };
+const MILESTONES = { 1: "Sheep 1 clears the fence. Gold medal.", 25: "25 sheep. The fence is filing a complaint.", 50: "50 sheep. Half of them are also awake.", 100: "100 sheep! The sheep are now counting you.", 250: "250 sheep. That's a whole wool startup.", 404: "Sheep 404 not found. It went to sleep. Maybe you should too.", 500: "500 sheep. Okay, legend. Try closing your eyes?" };
 const THOUGHTS = [
   "Your pillow has a cool side. Go find it.", "Somewhere, a cat is asleep in a sunbeam. You could be next.", "Breathe in for 4, hold for 7, out for 8.",
   "Nothing you need to solve tonight will be solved tonight.", "The moon has been up all night too. You're in good company.", "Tomorrow's problems are asleep. Let them lie.",
@@ -720,13 +784,22 @@ const THOUGHTS = [
   "Your blanket is a tiny house. You're safe in it.", "The stars don't rush. Neither do you.", "Every sheep you count is one you never have to count again.",
 ];
 let lastSheepLine = -1, lastThought = -1;
+let sheepDeck = [];
+function sheepBag() { // shuffle bag: every line once before any comes back, never the same line twice in a row
+  if (!sheepDeck.length) {
+    sheepDeck = SHEEP_LINES.map((_, i) => i);
+    for (let k = sheepDeck.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [sheepDeck[k], sheepDeck[j]] = [sheepDeck[j], sheepDeck[k]]; }
+    const L = sheepDeck.length - 1; if (L > 0 && sheepDeck[L] === lastSheepLine) { const j = Math.floor(Math.random() * L); [sheepDeck[L], sheepDeck[j]] = [sheepDeck[j], sheepDeck[L]]; }
+  }
+  return sheepDeck.pop();
+}
 function pickDiff(arr, last) { if (arr.length < 2) return 0; let i; do { i = Math.floor(Math.random() * arr.length); } while (i === last); return i; }
 function countSheep() {
   sheep++; save("sheep", sheep); SFX.sheep();
   let text;
   if (MILESTONES[sheep]) text = MILESTONES[sheep];
-  else if (sheep % 10 === 0) text = sheep + " sheep! A round number. The flock cheers quietly.";
-  else { lastSheepLine = pickDiff(SHEEP_LINES, lastSheepLine); text = SHEEP_LINES[lastSheepLine].replace("{n}", sheep); }
+  else if (sheep % 50 === 0) text = sheep + " sheep! A round number. The flock cheers quietly.";
+  else { lastSheepLine = sheepBag(); text = SHEEP_LINES[lastSheepLine].replace("{n}", sheep); }
   line(text + " 🐑", "hi");
 }
 const Insomnia = {
@@ -801,11 +874,15 @@ const Morse = {
   choices() { return [{ label: "SOS", cmd: "sos" }, { label: "Hello", cmd: "hello" }, { label: "Type a word", fill: "" }, { label: "Help", cmd: "h" }, { label: "Quit", cmd: "q" }]; },
 };
 
+// Apps with their own window (not the command line): Insomnia OS and Meme Projects are their own sites' files, Easyconvert is native.
+const WINDOW_APPS = { insomnia: "insomnia", easyconvert: "easyconvert", memes: "memes" };
+let openAfterRun = null;
 const APPS = { notes: Notes, calc: Calc, clock: Clock, piano: Piano, sysinfo: SysInfo, insomnia: Insomnia, hello: Hello, guess: Guess, morse: Morse };
 function launch(id) {
   const a = appMeta(id);
   if (!a) return err("No app called " + id + ".");
   if (!isInstalled(id)) { err(a.name + " isn't installed. Get it with: store install " + id); return; }
+  if (WINDOW_APPS[id]) { openAfterRun = id; line("Opening " + a.name + ".", "dimt"); return; }
   if (APPS[id].oneShot) { APPS[id].run(); return; }
   setMode(APPS[id]); APPS[id].start();
 }
@@ -813,7 +890,7 @@ function launch(id) {
 /* ---------- shell ---------- */
 const HELP = [
   ["help", "this list"], ["ls", "list files"], ["cat file", "show a file"], ["write file text", "save a file"], ["rm file", "delete a file"],
-  ["apps", "your installed apps"], ["store", "the App Store"], ["sound", "on, off, test, list, keys on or off, or a volume like sound 120"],
+  ["apps", "your installed apps"], ["store", "the App Store"], ["insomnia", "open Insomnia OS (insomnia lite is the old text version)"], ["easyconvert", "open Easyconvert, the file converter"], ["memes", "open Meme Projects"], ["sound", "on, off, test, list, keys on or off, or a volume like sound 120"],
   ["name", "set what I call you, or name clear"], ["about or sysinfo", "About this NexOS: what it is, system info and credits"], ["files", "the Files app"], ["beat", "play or stop the NexOS beat"], ["home", "close the terminal and go to the Home screen"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
 ];
 function shell(raw) {
@@ -844,7 +921,19 @@ function shell(raw) {
     case "sound": case "mute": case "unmute": case "volume": case "beep": return soundCmd(w, arg);
     case "about": case "ver": case "version": case "sysinfo": printAbout(); return;
     case "files": setMode(Files); Files.start(); return;
-    case "beat": beatToggle((t) => line(t, "ok")); return;
+    case "beat": {
+      const say = (t) => line(t, "ok");
+      if (!arg) { beatToggle(say); return; }
+      const g = arg.toLowerCase();
+      if (g === "stop") { if (beatPlaying()) beatToggle(say); else line("The beat isn't playing."); return; }
+      loadGenres().then(() => {
+        if (g === "list" || g === "styles" || g === "genres") { line("Beat styles: " + beatGenres.map((x) => x.label + (x.id === curGenre().id ? " (chosen)" : "")).join(", ") + ". Type beat and a style to play it.", "info"); flush(); return; }
+        const m = beatGenres.find((x) => x.id.toLowerCase() === g || x.label.toLowerCase() === g) || beatGenres.find((x) => x.label.toLowerCase().startsWith(g) || x.id.toLowerCase().startsWith(g));
+        if (!m) { err("No beat style called " + arg + ". Type beat list."); flush(); return; }
+        setGenre(m.id); if (beatPlaying()) stopBeatHook(); beatToggle(say); flush();
+      });
+      return;
+    }
     case "home": case "launcher": if (cur === CTX.terminal) { closeAfterRun = true; line("Going to the Home screen.", "dimt"); } return;
     case "uptime": line("Up for " + spoken(Date.now() - bootTime) + "."); return;
     case "echo": line(arg); return;
@@ -855,9 +944,11 @@ function shell(raw) {
     }
     case "hi": line("Hi" + (userName ? ", " + userName : "") + "! Type help to see what I can do."); return;
     case "clear": case "cls": logEl.replaceChildren(); line("Screen cleared."); return;
+    case "insomnia": if (/^lite$/i.test(arg)) { if (!isInstalled("insomnia")) return err("Insomnia OS isn't installed. Get it with: store install insomnia"); setMode(Insomnia); Insomnia.start(); return; } return launch("insomnia");
+    case "easyconvert": case "memes": case "memeprojects": return launch(WINDOW_APPS[w] || "memes");
     case "exit": case "q": case "quit": line("You're at the nexos shell already. Close the tab to leave, or type help."); return;
   }
-  const a = findApp(w) && APPS[findApp(w).id] && !/^\d+$/.test(w) ? findApp(w) : null;
+  const a = findApp(w) && (APPS[findApp(w).id] || WINDOW_APPS[findApp(w).id]) && !/^\d+$/.test(w) ? findApp(w) : null;
   if (a) return launch(a.id);
   err("Unknown command: " + w0 + ". Type help to see commands.");
 }
@@ -895,7 +986,8 @@ const SOUND_LIST = [
   "Sound on: up two notes. Sound off: down two notes. Octave up and down: a slide up or down.",
   "Typing: a soft key click, a deeper space bar, a tick for Backspace, and a faint tick for Tab and the arrow keys. In the Calculator, digits are tuned and operators click twice.",
   "Apps: Clock has a tick tock, a timer wind up, and stopwatch start, stop, lap and reset beeps. Notes flicks a page. Guess the Number slides up for higher and down for lower.",
-  "Listen to the beat, in Sound settings on Home or the beat command, plays the NexOS beat made from these sounds.",
+  "Listen to the beat, in Sound settings on Home or the beat command, plays the NexOS beat made from these sounds. Beat style, next to it, or beat list and beat and a style in Terminal, picks which version plays.",
+  "Insomnia OS, Easyconvert and Meme Projects: each one's button plays its own little tune. In Easyconvert, choosing files is a soft tick, Convert a bright double blip, a finished conversion three rising notes, Download a paper flick and Copy a short beep. Insomnia OS keeps its own chimes, baa, soundscapes and volume, the same as on its own site. Meme Projects is silent.",
   "Store and system sounds stay the same: rising chime for install, falling pair for uninstall, low double buzz for errors.",
 ];
 function setKeySounds(on, speak) {
@@ -968,6 +1060,7 @@ function run(raw, fromButton) {
     else shell(raw);
   } catch (e) { line("Something went wrong: " + e.message, "err"); }
   if (closeAfterRun) { closeAfterRun = false; pending = null; closeView(!fromButton); return true; }
+  if (openAfterRun) { const id = openAfterRun, from = view; openAfterRun = null; flush(shown); renderChoices(); openView("app:" + id); returnTo = from === "terminal" ? "terminal" : null; return true; }
   flush(shown);
   renderChoices();
   return false;
@@ -1031,9 +1124,14 @@ setVolume(volume, false); setMuted(muted, "silent");
 /* ---------- Home, views and focus ---------- */
 // Home is a list of app buttons. Each opens a view: focus moves to the view's heading on open,
 // and back to the button that opened it on close (Close button, or Escape).
-const VIEWS = { home: $("#home"), terminal: $("#terminal-view"), app: $("#app-view"), about: $("#about-view") };
-const HEADS = { home: $("#home-h"), terminal: $("#term-h"), app: appH, about: $("#about-h") };
-let view = "home", opener = null;
+const VIEWS = { home: $("#home"), terminal: $("#terminal-view"), app: $("#app-view"), about: $("#about-view"), insomnia: $("#insomnia-view"), easyconvert: $("#easyconvert-view"), memes: $("#memes-view") };
+const HEADS = { home: $("#home-h"), terminal: $("#term-h"), app: appH, about: $("#about-h"), insomnia: $("#ins-h"), easyconvert: $("#ec-h"), memes: $("#memes-h") };
+const FRAMES = { insomnia: $("#ins-frame"), memes: $("#memes-frame") }; // Insomnia OS and Meme Projects: their own sites' files, in a frame
+let view = "home", opener = null, returnTo = null;
+function leaveAppWindow() { if (view === "app") { if (mode && mode.onQuit) mode.onQuit(); mode = null; CTX.app.mode = null; useCtx(CTX.terminal); } }
+function frameSoundscape(k) { try { const w = FRAMES[k] && FRAMES[k].contentWindow; return !!(w && w.__nexosEmbed && w.__nexosEmbed.soundscape()); } catch (e) { return false; } }
+// Battery: a closed app's frame is unloaded (its timers, sounds and animation stop), except an Insomnia soundscape you left playing.
+function unloadFrame(k) { const f = FRAMES[k]; if (f && f.getAttribute("src")) f.removeAttribute("src"); }
 function launcherItems() {
   const c = [{ id: "terminal", label: "Terminal", desc: "command line" }, { id: "store", label: "App Store", desc: catalog.length + " apps" }];
   catalog.filter((a) => isInstalled(a.id) && a.id !== "sysinfo").forEach((a) => c.push({ id: "app:" + a.id, label: a.name }));
@@ -1067,6 +1165,13 @@ function openView(id, focus = true) {
     if (!termGreeted) { termGreeted = true; greetLine(); }
     setMode(mode); renderChoices();
   } else if (id === "about") { renderAbout(); show("about"); }
+  else if (WINDOW_APPS[id.slice(4)]) {
+    const k = WINDOW_APPS[id.slice(4)];
+    leaveAppWindow();
+    if (FRAMES[k] && !FRAMES[k].getAttribute("src")) FRAMES[k].setAttribute("src", FRAMES[k].dataset.src);
+    if (k === "easyconvert") EC.open();
+    show(k);
+  }
   else {
     useCtx(CTX.app); CTX.app.log.replaceChildren(); pending = null;
     const appId = id === "store" ? "store" : id === "files" ? "files" : id.slice(4);
@@ -1082,8 +1187,13 @@ function openView(id, focus = true) {
 }
 function closeView(silent) {
   if (view === "home") return;
-  if (view === "app") { if (mode && mode.onQuit) mode.onQuit(); mode = null; CTX.app.mode = null; useCtx(CTX.terminal); }
+  leaveAppWindow();
+  if (FRAMES[view]) {
+    if (view === "insomnia" && frameSoundscape("insomnia")) { const s = $("#status"); s.textContent = ""; setTimeout(() => { s.textContent = "Your Insomnia OS soundscape keeps playing. Open Insomnia OS again to change or stop it."; }, 60); }
+    else unloadFrame(view);
+  }
   if (!silent) play("back");
+  if (returnTo === "terminal") { returnTo = null; openView("terminal", false); input.focus(); return; }
   show("home"); renderLauncher();
   const b = opener && launcherEl.querySelector('[data-open="' + opener + '"]');
   (b || HEADS.home).focus();
@@ -1091,11 +1201,17 @@ function closeView(silent) {
 launcherEl.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-open]"); if (!b) return;
   gesture(); const s = launcherSound(b.dataset.open); play(s[0], s[1]);
-  openView(b.dataset.open);
+  returnTo = null; openView(b.dataset.open);
 });
 $(".skip").addEventListener("click", (e) => { e.preventDefault(); HEADS[view].focus(); }); // skip to the open view's heading
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-close]"); if (!b) return; gesture(); closeView(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && view !== "home" && !e.defaultPrevented) { e.preventDefault(); gesture(); closeView(); } });
+// Escape pressed inside Insomnia OS or Meme Projects (when nothing inside used it) closes the app, the same as everywhere else.
+window.addEventListener("message", (e) => {
+  if (e.origin !== location.origin || !e.data || e.data.nexos !== "escape") return;
+  const k = Object.keys(FRAMES).find((x) => FRAMES[x].contentWindow === e.source);
+  if (k && view === k) { gesture(); closeView(); }
+});
 
 /* ---- Sound settings: a disclosure on Home, collapsed by default, remembered ---- */
 const soundToggle = $("#sound-toggle"), soundPanel = $("#sound-panel");
@@ -1109,23 +1225,123 @@ soundToggle.addEventListener("click", () => { gesture(); setSoundOpen(soundPanel
 /* ---- Listen to the beat: the NexOS beat, played through the same volume, mute and limiter ---- */
 const BEAT_TITLE = "NexOS Morning to Night", beatAudio = $("#beat-audio"), beatBtn = $("#beat");
 let beatNode = null;
-function beatLength() { return isFinite(beatAudio.duration) && beatAudio.duration > 0 ? spoken(beatAudio.duration * 1000) : "1 minute 9 seconds"; }
+// Beat styles: beat/genres.json lists [{ id, label, file, seconds }]. Without it, only the original beat is offered.
+const BEAT_ORIGINAL = { id: "original", label: "Original", file: "beat/nexos-beat.m4a", seconds: 69 };
+let beatGenres = [BEAT_ORIGINAL], beatGenre = load("beat_genre", "original"), genresLoading = null;
+const genreSel = $("#beat-genre");
+const genreFile = (g) => (/[/:]/.test(g.file) ? g.file : "beat/" + g.file);
+const curGenre = () => beatGenres.find((g) => g.id === beatGenre) || beatGenres[0];
+function renderGenres() {
+  genreSel.replaceChildren(...beatGenres.map((g) => { const o = document.createElement("option"); o.value = g.id; o.textContent = g.label; return o; }));
+  genreSel.value = curGenre().id;
+}
+function loadGenres() {
+  if (genresLoading) return genresLoading;
+  genresLoading = fetch("beat/genres.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((list) => {
+    if (!Array.isArray(list)) return;
+    const ok = list.filter((g) => g && typeof g.id === "string" && typeof g.file === "string" && /^[\w-]{1,40}$/.test(g.id)).map((g) => ({ id: g.id, label: String(g.label || g.id).slice(0, 60), file: g.file, seconds: +g.seconds || 0 }));
+    beatGenres = [BEAT_ORIGINAL].concat(ok.filter((g) => g.id !== "original"));
+    const o = ok.find((g) => g.id === "original"); if (o) beatGenres[0] = Object.assign({}, BEAT_ORIGINAL, o, { label: o.label || "Original" });
+  }).catch(() => {}).then(() => { renderGenres(); return beatGenres; });
+  return genresLoading;
+}
+function setGenre(id, say) {
+  const g = beatGenres.find((x) => x.id === id); if (!g) return false;
+  const was = beatPlaying(); if (was) stopBeatHook();
+  beatGenre = g.id; save("beat_genre", g.id); genreSel.value = g.id;
+  if (say) say("Beat style: " + g.label + "." + (was ? " Press Listen to the beat to hear it." : ""));
+  return true;
+}
+renderGenres();
+function beatLength() { const g = curGenre(); return isFinite(beatAudio.duration) && beatAudio.duration > 0 ? spoken(beatAudio.duration * 1000) : g.seconds ? spoken(g.seconds * 1000) : "1 minute 9 seconds"; }
 function beatPlaying() { return !beatAudio.paused && !beatAudio.ended; }
 function setBeatUI(on) { beatBtn.setAttribute("aria-pressed", String(on)); beatBtn.textContent = on ? "Stop the beat" : "Listen to the beat"; }
 function beatToggle(say) {
   gesture();
   if (beatPlaying()) { beatAudio.pause(); beatAudio.currentTime = 0; setBeatUI(false); play("back"); say("Stopped."); return; }
   if (muted) { say("Sound is muted. Turn sound on to hear the beat."); return; }
+  const g = curGenre(), src = genreFile(g);
+  if (beatAudio.getAttribute("src") !== src) { beatAudio.setAttribute("src", src); try { beatAudio.load(); } catch (e) {} }
   try { if (ac && !beatNode && ac.createMediaElementSource) { beatNode = ac.createMediaElementSource(beatAudio); beatNode.connect(amb); } } catch (e) { beatNode = null; }
   if (!beatNode) beatAudio.volume = Math.min(1, volume / 150);
   beatAudio.currentTime = 0;
-  setBeatUI(true); say("Playing " + BEAT_TITLE + ", " + beatLength() + ".");
+  setBeatUI(true); say("Playing " + BEAT_TITLE + ", " + (g.id === "original" ? "" : g.label + ", ") + beatLength() + ".");
   const p = beatAudio.play();
   if (p && p.catch) p.catch(() => { setBeatUI(false); say("This browser couldn't play the beat."); });
 }
 stopBeatHook = () => { if (beatPlaying()) { beatAudio.pause(); beatAudio.currentTime = 0; setBeatUI(false); } };
 beatAudio.addEventListener("ended", () => { setBeatUI(false); soundSay(BEAT_TITLE + " finished."); });
 beatBtn.addEventListener("click", () => beatToggle(soundSay));
+genreSel.addEventListener("change", () => { gesture(); play("nav"); setGenre(genreSel.value, soundSay); });
+genreSel.addEventListener("focus", () => { loadGenres(); }, { once: true });
+soundToggle.addEventListener("click", () => { if (!soundPanel.hidden) loadGenres(); });
+if (!soundPanel.hidden) loadGenres();
+
+/* ---- Easyconvert: a native port of the Easyconvert repo's default branch (same formats, same results, same file names) ---- */
+// Everything runs in this browser: files are read with the File API and never uploaded. JSZip (for DOCX and ZIP) is a local copy, loaded on first use.
+const EC = (() => {
+  const ecIn = $("#ec-input"), ecFmt = $("#ec-format"), ecList = $("#ec-list"), ecStatus = $("#ec-status");
+  let files = [], results = [], format = "txt", zipLoading = null;
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  function say(t) { ecStatus.textContent = ""; setTimeout(() => { ecStatus.textContent = t; }, 40); }
+  function zip() {
+    if (window.JSZip) return Promise.resolve(window.JSZip);
+    return zipLoading || (zipLoading = new Promise((ok, no) => { const s = document.createElement("script"); s.src = "apps/easyconvert/jszip.min.js"; s.onload = () => ok(window.JSZip); s.onerror = () => { zipLoading = null; no(Error("the ZIP helper didn't load")); }; document.head.appendChild(s); }));
+  }
+  function save(n, d, t) { const a = document.createElement("a"), u = URL.createObjectURL(d instanceof Blob ? d : new Blob([d], { type: t })); a.href = u; a.download = n; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1e3); }
+  async function docx(text) {
+    const JSZip = await zip(), z = new JSZip(), body = text.split(/\r?\n/).map((x) => '<w:p><w:r><w:t xml:space="preserve">' + esc(x) + "</w:t></w:r></w:p>").join("");
+    const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + body + "<w:sectPr/></w:body></w:document>";
+    if (!body || !xml.includes("<w:t")) throw Error("DOCX text generation failed");
+    z.file("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    z.file("_rels/.rels", '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+    z.file("word/_rels/document.xml.rels", '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>');
+    z.file("word/document.xml", xml);
+    return z.generateAsync({ type: "blob" });
+  }
+  async function convert(f) {
+    const raw = await f.text();
+    if (format === "docx") return { data: await docx(raw), type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", preview: raw };
+    return { data: format === "json" ? JSON.stringify({ filename: f.name, content: raw }, null, 2) : raw, type: "text/plain", preview: raw };
+  }
+  const outName = (f) => f.name.replace(/\.[^.]+$/, "") + "." + (format === "docx" ? "docx" : format === "json" ? "json" : "txt");
+  function render() {
+    if (!files.length) { ecList.replaceChildren(Object.assign(document.createElement("p"), { textContent: "No files selected." })); return; }
+    const ul = document.createElement("ul"); ul.className = "ec-files";
+    files.forEach((f, i) => {
+      const li = document.createElement("li"), b = document.createElement("button"), c = document.createElement("button"), d = document.createElement("button"), p = document.createElement("pre");
+      const pid = "ec-pre-" + i;
+      b.type = c.type = d.type = "button"; b.className = "ec-name"; b.textContent = f.name;
+      b.setAttribute("aria-expanded", "false"); b.setAttribute("aria-controls", pid);
+      b.onclick = () => { gesture(); p.hidden = !p.hidden; b.setAttribute("aria-expanded", String(!p.hidden)); play(p.hidden ? "back" : "page"); };
+      c.innerHTML = 'Copy<span class="sr-only"> ' + esc(f.name) + "</span>";
+      c.onclick = () => { gesture(); play("confirm"); const t = results[i] ? results[i].preview : ""; const done = () => say(t ? "Copied " + f.name + "." : "Convert first, then copy."); try { navigator.clipboard.writeText(t).then(done, () => say("Copy didn't work in this browser.")); } catch (e) { say("Copy didn't work in this browser."); } };
+      d.innerHTML = 'Download<span class="sr-only"> ' + esc(f.name) + "</span>";
+      d.onclick = () => { gesture(); const x = results[i]; if (!x) { SFX.error(); say("Convert first, then download."); return; } play("files"); save(outName(f), x.data, x.type); say("Downloading " + outName(f) + "."); };
+      p.id = pid; p.hidden = true; p.tabIndex = 0; p.setAttribute("aria-label", "Preview of " + f.name); p.textContent = results[i] ? results[i].preview : "Not converted yet.";
+      const row = document.createElement("div"); row.className = "ec-actions"; row.append(b, c, d);
+      li.append(row, p); ul.appendChild(li);
+    });
+    ecList.replaceChildren(ul);
+  }
+  ecIn.addEventListener("change", (e) => { gesture(); files.push(...e.target.files); play("fill"); render(); say(plural(files.length, "file") + " selected."); });
+  ecFmt.addEventListener("change", () => play("nav"));
+  $("#ec-convert").addEventListener("click", async () => {
+    gesture(); format = ecFmt.value; results = [];
+    if (!files.length) { SFX.error(); say("Choose one or more files first."); return; }
+    play("run");
+    try { for (const f of files) results.push(await convert(f)); render(); SFX.update(); say("Conversion complete as " + format.toUpperCase()); }
+    catch (e) { SFX.error(); say("Conversion failed: " + e.message); }
+  });
+  $("#ec-download-all").addEventListener("click", async () => {
+    gesture();
+    if (!results.length) { SFX.error(); say("Convert first, then download."); return; }
+    try { const JSZip = await zip(), z = new JSZip(); results.forEach((x, i) => z.file(files[i].name.replace(/\.[^.]+$/, "") + "." + format, x.data)); play("files"); save("Easyconvert-converted-files.zip", await z.generateAsync({ type: "blob" }), "application/zip"); say("Downloading Easyconvert-converted-files.zip."); }
+    catch (e) { SFX.error(); say("Download failed: " + e.message); }
+  });
+  render();
+  return { open() {}, get state() { return { files: files.length, results: results.length, format }; }, outputs: () => results.map((r, i) => ({ name: files[i] && outName(files[i]), type: r.type })) };
+})();
 
 /* ---- About this NexOS window ---- */
 const aboutBody = $("#about-body"), aboutStatus = $("#about-status");
