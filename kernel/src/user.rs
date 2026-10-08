@@ -10,17 +10,31 @@ use x86_64::structures::paging::PageTableFlags;
 
 static HELLO_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/userland.elf"));
 
+pub enum AppKind {
+    /// A ring-3 ELF program (built from userland/).
+    Elf(fn() -> &'static [u8]),
+    /// A built-in full-screen app that runs inside the kernel (kernel/src/apps/).
+    Native(fn()),
+}
+
 pub struct App {
     pub name: &'static str,
     pub about: &'static str,
-    image: fn() -> &'static [u8],
+    pub kind: AppKind,
 }
 
-pub static APPS: &[App] = &[App {
-    name: "hello",
-    about: "first Looscid userland program (ring 3, talks to the kernel via syscalls)",
-    image: || HELLO_ELF,
-}];
+pub static APPS: &[App] = &[
+    App {
+        name: "hello",
+        about: "first Looscid userland program (ring 3, talks to the kernel via syscalls)",
+        kind: AppKind::Elf(|| HELLO_ELF),
+    },
+    App {
+        name: "insomnia",
+        about: "can't sleep? moon, stars, a sheep counter and a lullaby (Esc to exit)",
+        kind: AppKind::Native(crate::apps::insomnia::run),
+    },
+];
 
 const USER_STACK_TOP: u64 = USER_BASE + 0x80_0000;
 const USER_STACK_SIZE: u64 = 16 * 1024;
@@ -69,7 +83,14 @@ pub fn find(name: &str) -> Option<&'static App> {
 
 /// Run an app in ring 3 and return its exit code.
 pub fn run(app: &App) -> Result<i64, &'static str> {
-    let entry = load_elf((app.image)())?;
+    let image = match app.kind {
+        AppKind::Native(f) => {
+            f();
+            return Ok(0);
+        }
+        AppKind::Elf(image) => image(),
+    };
+    let entry = load_elf(image)?;
     memory::map_range(
         USER_STACK_TOP - USER_STACK_SIZE,
         USER_STACK_SIZE,

@@ -18,7 +18,8 @@ const HELP: &[(&str, &str)] = &[
     ("write <file> <text>", "create or replace a file"),
     ("rm <file>", "delete a file"),
     ("apps", "list programs that can run in user mode"),
-    ("run <app>", "run a program in ring 3 (try: run hello)"),
+    ("run <app>", "run an app (try: run hello)"),
+    ("insomnia", "can't sleep? moon, stars and a sheep counter"),
     ("beep", "play the boot chime"),
     ("mute", "turn sound off/on"),
     ("theme dark|light", "high-contrast colour theme"),
@@ -132,10 +133,16 @@ fn execute(line: &str) {
             let name = if rest.is_empty() { "hello" } else { rest };
             match user::find(name) {
                 Some(app) => match user::run(app) {
-                    Ok(code) => println!("[{} exited with code {}]", name, code),
+                    Ok(code) if matches!(app.kind, user::AppKind::Elf(_)) => println!("[{} exited with code {}]", name, code),
+                    Ok(_) => {}
                     Err(e) => println!("run: {}", e),
                 },
                 None => println!("run: no app named '{}' (see 'apps')", name),
+            }
+        }
+        "insomnia" => {
+            if let Some(app) = user::find("insomnia") {
+                let _ = user::run(app);
             }
         }
         "beep" => timer::boot_chime(),

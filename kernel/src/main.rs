@@ -12,6 +12,7 @@
 extern crate alloc;
 
 mod allocator;
+mod apps;
 mod boot;
 mod console;
 mod fs;

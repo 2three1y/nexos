@@ -124,6 +124,48 @@ impl Writer {
     }
 }
 
+/// Direct cell drawing for full-screen apps (no cursor movement).
+pub fn put_at(row: usize, col: usize, s: &str, attr: u8) {
+    for (i, b) in s.bytes().enumerate() {
+        let c = col + i;
+        if row >= ROWS || c >= COLS {
+            break;
+        }
+        let b = if (0x20..0x7f).contains(&b) { b } else { b'?' };
+        unsafe { ((VGA_MEM + (row * COLS + c) * 2) as *mut u16).write_volatile((attr as u16) << 8 | b as u16) };
+    }
+}
+
+/// Fill a whole row with spaces in the given attribute.
+pub fn clear_row_attr(row: usize, attr: u8) {
+    for c in 0..COLS {
+        unsafe { ((VGA_MEM + (row * COLS + c) * 2) as *mut u16).write_volatile((attr as u16) << 8 | b' ' as u16) };
+    }
+}
+
+pub fn hide_cursor() {
+    let mut idx: Port<u8> = Port::new(0x3D4);
+    let mut dat: Port<u8> = Port::new(0x3D5);
+    unsafe {
+        idx.write(0x0A);
+        dat.write(0x20);
+    }
+}
+
+pub fn show_cursor() {
+    let mut idx: Port<u8> = Port::new(0x3D4);
+    let mut dat: Port<u8> = Port::new(0x3D5);
+    unsafe {
+        idx.write(0x0A);
+        dat.write(0x0D);
+        idx.write(0x0B);
+        dat.write(0x0F);
+    }
+}
+
+pub const SCREEN_ROWS: usize = ROWS;
+pub const SCREEN_COLS: usize = COLS;
+
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for b in s.bytes() {
