@@ -1,14 +1,17 @@
 //! Loading and running ring-3 programs.
 //!
-//! The app registry is the hook for launching Looscid apps: today it holds the
-//! `hello` program built from userland/ (embedded in the kernel image); later
-//! entries can come from a disk or the in-memory filesystem.
+//! The program registry: every app's `entry` name (from its manifest in
+//! kernel/catalog/) maps to its code here, either a ring-3 ELF built from
+//! userland/ and embedded in the kernel image, or a native kernel app.
+//! What is installed, and everything users see about an app, comes from the
+//! App Store's manifests (apps/store.rs); this table only holds the code.
 
 use crate::memory::{self, USER_BASE, USER_LIMIT};
 use crate::{gdt, syscall};
 use x86_64::structures::paging::PageTableFlags;
 
 static HELLO_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/userland.elf"));
+static GUESS_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/guess.elf"));
 
 pub enum AppKind {
     /// A ring-3 ELF program (built from userland/).
@@ -18,23 +21,30 @@ pub enum AppKind {
 }
 
 pub struct App {
+    /// The `entry` name a manifest points at.
     pub name: &'static str,
-    pub about: &'static str,
     pub kind: AppKind,
 }
 
 pub static APPS: &[App] = &[
-    App {
-        name: "hello",
-        about: "first Looscid userland program (ring 3, talks to the kernel via syscalls)",
-        kind: AppKind::Elf(|| HELLO_ELF),
-    },
-    App {
-        name: "insomnia",
-        about: "can't sleep? sheep, 4am thoughts, soundscapes, goodnight (Esc to exit)",
-        kind: AppKind::Native(crate::apps::insomnia::run),
-    },
+    App { name: "hello", kind: AppKind::Elf(|| HELLO_ELF) },
+    App { name: "guess", kind: AppKind::Elf(|| GUESS_ELF) },
+    App { name: "store", kind: AppKind::Native(crate::apps::store::run) },
+    App { name: "notes", kind: AppKind::Native(crate::apps::notes::run) },
+    App { name: "calc", kind: AppKind::Native(crate::apps::calc::run) },
+    App { name: "clock", kind: AppKind::Native(crate::apps::clock::run) },
+    App { name: "sysinfo", kind: AppKind::Native(crate::apps::sysinfo::run) },
+    App { name: "piano", kind: AppKind::Native(crate::apps::piano::run) },
+    App { name: "insomnia", kind: AppKind::Native(crate::apps::insomnia::run) },
 ];
+
+/// Size of an app's program image in bytes, for ring-3 apps.
+pub fn image_size(name: &str) -> Option<usize> {
+    match find(name)?.kind {
+        AppKind::Elf(image) => Some(image().len()),
+        AppKind::Native(_) => None,
+    }
+}
 
 const USER_STACK_TOP: u64 = USER_BASE + 0x80_0000;
 const USER_STACK_SIZE: u64 = 16 * 1024;

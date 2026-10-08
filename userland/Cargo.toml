@@ -2,7 +2,9 @@
 #
 # Programs here are freestanding x86_64 ELF executables linked into the user
 # window (0x4000_0000). They talk to the NexOS kernel only through system
-# calls (`int 0x80`). The kernel embeds `nexos-userland` as the `hello` app.
+# calls (`int 0x80`), wrapped by the `looscid` app API in src/lib.rs.
+# The kernel embeds `nexos-userland` as the `hello` app and `guess` as
+# Guess the Number (see docs/APPS.md).
 
 [package]
 name = "nexos-userland"
@@ -11,8 +13,20 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "looscid"
+path = "src/lib.rs"
+test = false
+bench = false
+
 [[bin]]
 name = "nexos-userland"
 path = "src/main.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "guess"
+path = "src/bin/guess.rs"
 test = false
 bench = false

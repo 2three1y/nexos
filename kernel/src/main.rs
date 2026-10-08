@@ -74,7 +74,9 @@ pub extern "C" fn kernel_main(magic: u64, info_addr: u64) -> ! {
 
     let files = fs::init();
     ok!("in-memory filesystem: {} files", files);
-    ok!("user mode: {} app(s) registered, syscalls via int 0x80", user::APPS.len());
+    ok!("user mode: {} programs registered, syscalls via int 0x80", user::APPS.len());
+    let (in_store, installed) = apps::store::init();
+    ok!("App Store: {} apps in the catalog, {} installed", in_store, installed);
 
     timer::boot_chime();
     console::colored(Color::LightCyan, format_args!("Welcome to Looscid OS.\n"));

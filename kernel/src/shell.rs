@@ -1,7 +1,7 @@
 //! The Looscid shell: a small keyboard-driven command line.
 
 use crate::vga::Color;
-use crate::{allocator, console, fs, input, memory, print, println, timer, user, vga};
+use crate::{allocator, console, fs, input, memory, print, println, timer, vga};
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::Ordering;
@@ -17,9 +17,11 @@ const HELP: &[(&str, &str)] = &[
     ("cat <file>", "show a file"),
     ("write <file> <text>", "create or replace a file"),
     ("rm <file>", "delete a file"),
-    ("apps", "list programs that can run in user mode"),
-    ("run <app>", "run an app (try: run hello)"),
-    ("insomnia", "can't sleep? sheep, 4am thoughts, soundscapes, goodnight"),
+    ("home", "your apps, numbered: pick one to open it"),
+    ("store", "the App Store (store list, store install piano)"),
+    ("apps", "list installed apps"),
+    ("<app name>", "open an app: notes, calc, clock, sysinfo, insomnia"),
+    ("run <app>", "open an app by name (try: run hello)"),
     ("beep", "play the boot chime"),
     ("mute", "turn sound off/on"),
     ("sound", "speaker status: notes played, soundscape, mute"),
@@ -34,6 +36,7 @@ fn prompt() {
 
 pub fn run() -> ! {
     println!("Looscid OS shell ready. Type 'help' for commands.");
+    println!("Type home for your apps, or store for the App Store.");
     let mut line = String::new();
     prompt();
     loop {
@@ -125,25 +128,19 @@ fn execute(line: &str) {
                 println!("rm: no such file: {}", rest);
             }
         }
-        "apps" => {
-            for a in user::APPS {
-                println!("  {:<10} {}", a.name, a.about);
+        "apps" => crate::apps::store::installed(),
+        "home" => crate::apps::store::home(),
+        "store" => {
+            if rest.is_empty() {
+                crate::apps::store::run();
+            } else {
+                crate::apps::store::command(rest, false);
             }
         }
-        "run" => {
+        "run" | "open" => {
             let name = if rest.is_empty() { "hello" } else { rest };
-            match user::find(name) {
-                Some(app) => match user::run(app) {
-                    Ok(code) if matches!(app.kind, user::AppKind::Elf(_)) => println!("[{} exited with code {}]", name, code),
-                    Ok(_) => {}
-                    Err(e) => println!("run: {}", e),
-                },
-                None => println!("run: no app named '{}' (see 'apps')", name),
-            }
-        }
-        "insomnia" => {
-            if let Some(app) = user::find("insomnia") {
-                let _ = user::run(app);
+            if !crate::apps::store::launch(name) {
+                println!("run: no app named '{}'. Type apps for your apps, or store list.", name);
             }
         }
         "beep" => timer::boot_chime(),
@@ -177,8 +174,11 @@ fn execute(line: &str) {
             unsafe { x86_64::instructions::port::Port::<u8>::new(0x64).write(0xFE) };
         }
         _ => {
-            let words: Vec<&str> = line.split(' ').collect();
-            println!("unknown command: {} (type 'help')", words[0]);
+            // An app's name (or alias) opens it, so "notes" or "calculator" just works.
+            if line.parse::<usize>().is_ok() || !crate::apps::store::launch(line) {
+                let words: Vec<&str> = line.split(' ').collect();
+                println!("unknown command: {} (type 'help')", words[0]);
+            }
         }
     }
 }
