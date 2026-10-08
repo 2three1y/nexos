@@ -1,0 +1,12 @@
+# NexOS userland crate.
+#
+# User-space programs (shell, utilities, ELF-loaded apps) will live here.
+# Unlike the kernel, userland links against the kernel's syscall ABI and runs
+# in ring 3. For now this is a minimal placeholder so the workspace has a
+# clean kernel/userland boundary from day one.
+
+[package]
+name = "nexos-userland"
+version = "0.1.0"
+description = "NexOS userland — ring-3 programs"
+license = "MIT"

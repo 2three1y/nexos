@@ -1,0 +1,16 @@
+# NexOS kernel crate.
+#
+# This crate is FREESTANDING: it does not link against the standard library
+# (no_std) and does not use the host `main` entry point. The kernel is
+# cross-compiled for a bare x86_64 target (no OS) and entered via `_start`,
+# which the bootloader/QEMU jumps to directly.
+#
+# The custom target `x86_64-unknown-none` is defined in
+# `targets/x86_64-unknown-none.json` and selected via the `--target` flag
+# (see build.sh).
+
+[package]
+name = "nexos-kernel"
+version = "0.1.0"
+description = "NexOS kernel — freestanding x86_64 kernel core"
+license = "MIT"
