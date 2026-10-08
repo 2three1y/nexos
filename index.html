@@ -12,22 +12,30 @@
 <script src="script.js" defer></script>
 </head>
 <body>
-<a class="skip" href="#cmd">Skip to command line</a>
+<a class="skip" href="#main">Skip to main content</a>
 <header class="bar">
   <h1>NexOS <span class="dim">Web</span></h1>
   <p class="tag">A browser twin of the NexOS operating system</p>
 </header>
 
 <main id="main">
-  <section class="term" aria-labelledby="term-h">
-    <h2 id="term-h" class="sr-only">Terminal</h2>
+  <section id="home" class="view" aria-labelledby="home-h">
+    <h2 id="home-h" tabindex="-1">Home</h2>
+    <p class="hint" id="home-hint">Pick an app. Terminal is the command line, if you like typing. Close or Escape brings you back here.</p>
+    <ul id="launcher" class="launcher" aria-labelledby="home-h">
+      <li class="static"><a class="launch-link" href="real/">Boot the real kernel</a><span class="hint">: the actual 32-bit NexOS kernel, running in an emulated PC right in your browser.</span></li>
+    </ul>
+  </section>
+
+  <section id="terminal-view" class="view term" aria-labelledby="term-h" hidden>
+    <div class="view-head"><h2 id="term-h" tabindex="-1">Terminal</h2><button type="button" class="close" data-close>Close Terminal</button></div>
     <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Terminal output" tabindex="0">
       <div class="entry boot">
-        <p class="ok">NexOS kernel v0.4 (web twin) - booting NexOS</p>
+        <p class="ok">NexOS Web 0.5 (web twin of the NexOS kernel) - booting NexOS</p>
         <p><span class="ok">[ ok ]</span> shell, files, App Store and apps loaded</p>
         <p><span class="ok">[ ok ]</span> sound: synthesized, starts on your first key or tap</p>
         <p class="hi">Welcome to NexOS.</p>
-        <p>Type <kbd>help</kbd> and press Enter, or use the buttons below the command line.</p>
+        <p>Type <kbd>help</kbd> and press Enter, or use the buttons below the command line. Type <kbd>home</kbd> or press Escape to go back to Home.</p>
       </div>
     </div>
 
@@ -36,17 +44,33 @@
       <input id="cmd" name="cmd" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-describedby="cmd-hint">
       <button type="submit" class="run">Run</button>
     </form>
-    <p id="note-status" class="sr-only" aria-live="assertive" aria-atomic="true"></p>
     <p id="cmd-hint" class="hint">Enter runs. Up and Down arrows recall earlier commands.</p>
+
+    <h3 id="choices-h">Quick buttons: <span id="mode-name">Shell</span></h3>
+    <ul id="choices" class="choice-list" aria-labelledby="choices-h"></ul>
   </section>
 
-  <section class="choices" aria-labelledby="choices-h">
-    <h2 id="choices-h">Quick buttons: <span id="mode-name">Shell</span></h2>
-    <ul id="choices" class="choice-list"></ul>
+  <section id="app-view" class="view app" aria-labelledby="app-h" hidden>
+    <div class="view-head"><h2 id="app-h" tabindex="-1">App</h2><button type="button" class="close" data-close>Close</button></div>
+    <div id="app-log" class="log app-log" role="log" aria-live="polite" aria-relevant="additions" aria-label="App output" tabindex="0"></div>
+    <h3 id="app-choices-h" class="sr-only">Buttons</h3>
+    <ul id="app-choices" class="choice-list" aria-labelledby="app-choices-h"></ul>
+    <form id="app-form" class="cmdline" autocomplete="off">
+      <label for="app-input" id="app-input-label">Type in App</label>
+      <input id="app-input" name="app-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+      <button type="submit" class="run">Enter</button>
+    </form>
   </section>
 
-  <section class="sound" aria-labelledby="sound-h">
-    <h2 id="sound-h">Sound</h2>
+  <section id="about-view" class="view about" aria-labelledby="about-h" hidden>
+    <div class="view-head"><h2 id="about-h" tabindex="-1">About this NexOS</h2><button type="button" class="close" data-close>Close</button></div>
+    <div id="about-body"></div>
+    <div class="sound-row"><button id="about-refresh" type="button">Refresh system info</button></div>
+    <p id="about-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+  </section>
+
+  <section id="sound-view" class="view sound" aria-labelledby="sound-h" hidden>
+    <div class="view-head"><h2 id="sound-h" tabindex="-1">Sound settings</h2><button type="button" class="close" data-close>Close</button></div>
     <div class="sound-row">
       <label for="vol">Master volume</label>
       <input id="vol" type="range" min="0" max="150" step="5" value="100" aria-valuetext="100 percent">
@@ -61,22 +85,15 @@
       <label for="key-sounds">Typing clicks</label>
       <span id="key-sounds-hint" class="hint">Every button already has its own sound. This turns just the key clicks on or off.</span>
     </div>
-  </section>
-
-  <section class="about" aria-labelledby="about-h">
-    <h2 id="about-h">About</h2>
-    <p>NexOS Web is a web twin of NexOS, matching NexOS v0.4. The real <strong>NexOS kernel</strong> is written in Rust for 64-bit x86 PCs. It runs in QEMU or on real hardware, and plays its sounds on the PC speaker.</p>
-    <p>This page is not an emulator, and it does not run the real kernel. It mirrors the same <code>nexos&gt;</code> shell, App Store and apps in plain HTML and JavaScript, so you can try them in any browser with a screen reader.</p>
-    <p>Every button and key here has its own short, classic-style sound: numbered buttons rise in pitch, each app has its own little tune, quitting is a low thunk, and typing clicks softly. Type <kbd>sound list</kbd> to hear them described, or <kbd>sound keys off</kbd> to silence just the typing clicks. All of it follows the volume slider and Mute.</p>
-    <p>The real kernel's source code: <a href="https://github.com/2three1y/nexos">github.com/2three1y/nexos</a>.</p>
-    <p><a href="real/">Boot the real kernel</a>: the actual 32-bit NexOS kernel, running in an emulated PC right in your browser.</p>
-    <p>Everything stays on your device. There are no network requests, no tracking, and it keeps working offline. Your files, notes and installed apps are saved in this browser only.</p>
+    <p id="sound-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
   </section>
 </main>
 
 <footer class="foot">
-  <p>NexOS Web 0.4 · MIT licensed · Type <kbd>about</kbd> in the shell for more.</p>
+  <p>NexOS Web 0.5 · a web twin of NexOS, not the real kernel · MIT licensed · <a href="https://github.com/2three1y/nexos">Source on GitHub</a></p>
 </footer>
+<p id="note-status" class="sr-only" aria-live="assertive" aria-atomic="true"></p>
+<p id="status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
 <div id="alert" class="sr-only" role="alert"></div>
 </body>
 </html>
