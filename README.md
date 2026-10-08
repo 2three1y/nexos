@@ -1,5 +1,7 @@
 # NexOS
 
+Try it in your browser: https://2three1y.github.io/nexos/ (a web twin; the real kernel runs in QEMU or on hardware)
+
 NexOS is a hobby operating system for x86_64, written in Rust: the kernel and
 the system on top of it, all under one name.
 
