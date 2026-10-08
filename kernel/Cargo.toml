@@ -1,16 +1,26 @@
-# NexOS kernel crate.
+# NexOS kernel crate — the kernel of Looscid OS.
 #
-# This crate is FREESTANDING: it does not link against the standard library
-# (no_std) and does not use the host `main` entry point. The kernel is
-# cross-compiled for a bare x86_64 target (no OS) and entered via `_start`,
-# which the bootloader/QEMU jumps to directly.
-#
-# The custom target `x86_64-unknown-none` is defined in
-# `targets/x86_64-unknown-none.json` and selected via the `--target` flag
-# (see build.sh).
+# Freestanding (no_std, no_main) x86_64 kernel, booted by GRUB via Multiboot2.
+# The 32-bit entry stub (src/boot.rs) builds identity-mapped page tables,
+# switches to 64-bit long mode and calls `kernel_main`.
 
 [package]
 name = "nexos-kernel"
-version = "0.1.0"
-description = "NexOS kernel — freestanding x86_64 kernel core"
-license = "MIT"
+description = "NexOS kernel — freestanding x86_64 kernel for Looscid OS"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "nexos-kernel"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+x86_64 = "0.15"
+pic8259 = "0.11"
+pc-keyboard = "0.8"
+uart_16550 = "0.3"
+spin = "0.9"
+linked_list_allocator = "0.10"
