@@ -82,9 +82,6 @@ document.addEventListener("DOMContentLoaded",function(){sync(false);});})();
   <section id="home" class="view" aria-labelledby="home-h">
     <h2 id="home-h" tabindex="-1">Home</h2>
     <p class="hint" id="home-hint">Pick an app. Terminal is the command line, if you like typing. Close or Escape brings you back here.</p>
-    <ul id="launcher" class="launcher" aria-labelledby="home-h">
-      <li class="static"><a class="launch-link" href="real/">Boot the real kernel</a><span class="hint">: the actual 32-bit NexOS kernel, running in an emulated PC right in your browser.</span></li>
-    </ul>
     <div class="disclosure">
       <button id="sound-toggle" type="button" aria-expanded="false" aria-controls="sound-panel"><span class="tri" aria-hidden="true">&#9656;</span>Sound settings</button>
     </div>
@@ -108,17 +105,16 @@ document.addEventListener("DOMContentLoaded",function(){sync(false);});})();
       </div>
       <p id="sound-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
     </div>
+    <ul id="launcher" class="launcher" aria-labelledby="home-h">
+      <li class="static"><a class="launch-link" href="real/">Boot the real kernel</a><span class="hint">: the actual 32-bit NexOS kernel, running in an emulated PC right in your browser.</span></li>
+    </ul>
   </section>
 
   <section id="terminal-view" class="view term" aria-labelledby="term-h" hidden>
     <div class="view-head"><h2 id="term-h" tabindex="-1">Terminal</h2><button type="button" class="close" data-close>Close Terminal</button></div>
     <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Terminal output" tabindex="0">
       <div class="entry boot">
-        <p class="ok">NexOS Web 0.6 (web twin of the NexOS kernel) - booting NexOS</p>
-        <p><span class="ok">[ ok ]</span> shell, files, App Store and apps loaded</p>
-        <p><span class="ok">[ ok ]</span> sound: synthesized, starts on your first key or tap</p>
-        <p class="hi">Welcome to NexOS.</p>
-        <p>Type <kbd>help</kbd> and press Enter, or use the buttons below the command line. Type <kbd>home</kbd> or press Escape to go back to Home.</p>
+        <p class="hi">Welcome to NexOS. Type <kbd>help</kbd> and press Enter.</p>
       </div>
     </div>
 
@@ -182,7 +178,7 @@ document.addEventListener("DOMContentLoaded",function(){sync(false);});})();
 </main>
 
 <footer class="foot">
-  <p>NexOS Web 0.6 · a web twin of NexOS, not the real kernel · MIT licensed · <a href="https://github.com/2three1y/nexos">Source on GitHub</a></p>
+  <p>NexOS Web 0.6.1 · a web twin of NexOS, not the real kernel · MIT licensed · <a href="https://github.com/2three1y/nexos">Source on GitHub</a></p>
 </footer>
 <audio id="beat-audio" preload="none" src="beat/nexos-beat.m4a"></audio>
 <p id="note-status" class="sr-only" aria-live="assertive" aria-atomic="true"></p>
