@@ -60,3 +60,6 @@ section+section{margin-top:1.25rem}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media (forced-colors:active){button,#cmd{border:2px solid ButtonText}}
+
+.sound-row .hint{margin:0;flex-basis:100%}
+#key-sounds{width:1.4rem;height:1.4rem;margin:0;accent-color:#ffd75f}
