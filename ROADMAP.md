@@ -18,6 +18,14 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 - [x] PC-speaker boot chime with `mute`
 - [x] Insomnia app (built in): moon + starfield, sheep counter, lullaby, Esc back to the shell
 
+## Done (v0.3): Insomnia, ported from the web version
+
+- [x] Insomnia menu: 1 Sheep, 2 Thoughts, 3 Sounds, 4 Goodnight, every screen announced on serial
+- [x] 4am Thoughts notepad, saved with the time (CMOS clock) to `thoughts.txt` in the filesystem
+- [x] PC-speaker soundscapes in the background (Rain, Fan, Crickets, Old PC, Lullaby) with tempo, intensity and mute
+- [x] Goodnight: a gentle chime and "It's now safe to turn off your brain", then back to the shell
+- [x] `make run` plays the PC speaker on your sound card; `make wav` records it
+
 ## Next: the OS layer
 
 - [ ] Per-process address spaces (a page table per program) and memory protection between programs
@@ -30,7 +38,22 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 
 ## Future apps
 
-- [ ] Insomnia, full version: soundscape mixer, sheep counter and 4am notes, ported from the Insomnia OS web toy (github.com/2three1y/insomnia-os) as a ring-3 Looscid OS app once user programs can read the keyboard and draw
+- [ ] Insomnia as a ring-3 app: move it out of the kernel once user programs can read the keyboard and draw
+- [ ] Real audio (Sound Blaster 16 or Intel HD Audio) so Sounds can mix several layers with real volume sliders, like the web version
+- [ ] Save `thoughts.txt` to disk once there is an on-disk filesystem
+
+## Two editions of Looscid OS
+
+Looscid OS will ship in two editions that share one user-facing layer:
+
+- **NexOS edition** (the priority): the full OS on our own kernel, this repo.
+- **Linux edition** (later): a distro on the Linux kernel, so people can install it on real laptops today.
+
+Plan: the shell and apps target a small **Looscid API** (a syscall-like interface), with two backends: NexOS system calls and Linux/POSIX. Apps written once run on both editions.
+
+- [ ] Define the Looscid API (files, input, screen, sound, time, processes)
+- [ ] NexOS backend (syscalls)
+- [ ] Linux/POSIX backend, then a Linux-edition image
 
 ## Then: Looscid
 
