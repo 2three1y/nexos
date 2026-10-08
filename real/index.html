@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NexOS: the real kernel in your browser</title>
+<meta name="description" content="The real 32-bit NexOS kernel booting in an emulated PC, with an accessible serial console.">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="real.css">
+</head>
+<body>
+<a class="skip" href="#cmd">Skip to the command box</a>
+<header class="bar">
+  <h1>NexOS <span class="dim">real kernel</span></h1>
+  <p class="tag">The actual 32-bit NexOS kernel, booting in an emulated PC right in this page.</p>
+</header>
+<main id="main">
+  <p id="status" role="status" aria-live="polite" class="status">Loading the emulator…</p>
+
+  <section aria-labelledby="console-h">
+    <h2 id="console-h">Console</h2>
+    <p class="hint">Everything NexOS prints appears here as text. Type a command, like <code>help</code>, and press Enter or Send.</p>
+    <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="NexOS output" tabindex="0"></div>
+    <form id="send-form" class="cmdrow" autocomplete="off">
+      <label for="cmd">Command for NexOS</label>
+      <div class="cmdline">
+        <input id="cmd" name="cmd" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-describedby="cmd-help">
+        <button id="send" type="submit">Send</button>
+      </div>
+      <p id="cmd-help" class="hint">Send types your text into NexOS and presses Enter. With live keys on, each key goes straight in, which suits Piano and menus.</p>
+      <p class="check"><input id="live" type="checkbox"> <label for="live">Live keys: send each key as I type</label></p>
+    </form>
+    <div role="group" aria-labelledby="keys-h" class="keys">
+      <h3 id="keys-h">Keys</h3>
+      <button type="button" data-key="&#13;">Enter</button>
+      <button type="button" data-key="&#8;">Backspace</button>
+      <button type="button" data-key="&#27;">Escape</button>
+      <button type="button" data-key=" ">Space</button>
+      <button type="button" data-key="q" aria-label="q, quit">q quit</button>
+      <button type="button" data-key="h" aria-label="h, help">h help</button>
+      <button type="button" data-key="y">y</button>
+      <button type="button" data-key="n">n</button>
+    </div>
+    <div role="group" aria-labelledby="num-h" class="keys">
+      <h3 id="num-h">Number keys <span class="dim">(Piano notes, menu choices)</span></h3>
+      <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" data-key="0">0</button>
+    </div>
+    <p class="hint">Try: <code>help</code>, <code>about</code>, <code>store list</code>, <code>store install piano</code>, then <code>piano</code>.</p>
+  </section>
+
+  <section aria-labelledby="sound-h">
+    <h2 id="sound-h">Sound</h2>
+    <p class="hint" id="sound-note">NexOS beeps through the emulated PC speaker. Browsers only allow sound after you click or press a key on the page.</p>
+    <p class="check"><input id="sound" type="checkbox" checked> <label for="sound">Sound on</label></p>
+    <p><label for="vol">Volume</label> <input id="vol" type="range" min="0" max="150" step="5" value="100" aria-describedby="vol-out"> <output id="vol-out" for="vol">100%</output></p>
+  </section>
+
+  <section aria-labelledby="screen-h">
+    <h2 id="screen-h">Screen</h2>
+    <p id="screen-alt">The emulated PC's screen. It shows the same text as the console above, so screen readers can skip it.</p>
+    <div id="screen-wrap" class="screen-wrap">
+      <div id="screen" aria-hidden="true">
+        <div class="text"></div>
+        <canvas></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="about-h">
+    <h2 id="about-h">About this page</h2>
+    <p>This is not a simulation. It boots the same <code>nexos-i686.iso</code> you can build from the <a href="https://github.com/2three1y/nexos">NexOS repository</a> with <code>make iso32</code>: GRUB loads the 32-bit kernel, which sets up paging, interrupts and ring-3 apps. The PC is emulated by <a href="https://github.com/copy/v86">v86</a> (BSD-2-Clause), served from this site so it also works offline.</p>
+    <p>The kernel's shell runs on the serial port as well as the screen, which is how the console above reads and types. Prefer the lighter web twin? <a href="../">Open NexOS Web</a>.</p>
+  </section>
+</main>
+<script src="v86/libv86.js"></script>
+<script src="real.js"></script>
+</body>
+</html>
