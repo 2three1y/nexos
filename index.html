@@ -25,6 +25,27 @@
     <ul id="launcher" class="launcher" aria-labelledby="home-h">
       <li class="static"><a class="launch-link" href="real/">Boot the real kernel</a><span class="hint">: the actual 32-bit NexOS kernel, running in an emulated PC right in your browser.</span></li>
     </ul>
+    <div class="disclosure">
+      <button id="sound-toggle" type="button" aria-expanded="false" aria-controls="sound-panel"><span class="tri" aria-hidden="true">&#9656;</span>Sound settings</button>
+    </div>
+    <div id="sound-panel" class="sound" role="group" aria-label="Sound settings" hidden>
+      <div class="sound-row">
+        <label for="vol">Master volume</label>
+        <input id="vol" type="range" min="0" max="150" step="5" value="100" aria-valuetext="100 percent">
+        <output id="vol-out" for="vol">100%</output>
+      </div>
+      <div class="sound-row">
+        <button id="mute" type="button" aria-pressed="false">Mute</button>
+        <button id="test-sound" type="button">Play test chime</button>
+        <button id="beat" type="button" aria-pressed="false">Listen to the beat</button>
+      </div>
+      <div class="sound-row">
+        <input id="key-sounds" type="checkbox" checked aria-describedby="key-sounds-hint">
+        <label for="key-sounds">Typing clicks</label>
+        <span id="key-sounds-hint" class="hint">Every button already has its own sound. This turns just the key clicks on or off.</span>
+      </div>
+      <p id="sound-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+    </div>
   </section>
 
   <section id="terminal-view" class="view term" aria-labelledby="term-h" hidden>
@@ -69,29 +90,12 @@
     <p id="about-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
   </section>
 
-  <section id="sound-view" class="view sound" aria-labelledby="sound-h" hidden>
-    <div class="view-head"><h2 id="sound-h" tabindex="-1">Sound settings</h2><button type="button" class="close" data-close>Close</button></div>
-    <div class="sound-row">
-      <label for="vol">Master volume</label>
-      <input id="vol" type="range" min="0" max="150" step="5" value="100" aria-valuetext="100 percent">
-      <output id="vol-out" for="vol">100%</output>
-    </div>
-    <div class="sound-row">
-      <button id="mute" type="button" aria-pressed="false">Mute</button>
-      <button id="test-sound" type="button">Play test chime</button>
-    </div>
-    <div class="sound-row">
-      <input id="key-sounds" type="checkbox" checked aria-describedby="key-sounds-hint">
-      <label for="key-sounds">Typing clicks</label>
-      <span id="key-sounds-hint" class="hint">Every button already has its own sound. This turns just the key clicks on or off.</span>
-    </div>
-    <p id="sound-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
-  </section>
 </main>
 
 <footer class="foot">
   <p>NexOS Web 0.5 · a web twin of NexOS, not the real kernel · MIT licensed · <a href="https://github.com/2three1y/nexos">Source on GitHub</a></p>
 </footer>
+<audio id="beat-audio" preload="none" src="beat/nexos-beat.m4a"></audio>
 <p id="note-status" class="sr-only" aria-live="assertive" aria-atomic="true"></p>
 <p id="status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
 <div id="alert" class="sr-only" role="alert"></div>
