@@ -806,7 +806,7 @@ function launch(id) {
 const HELP = [
   ["help", "this list"], ["ls", "list files"], ["cat file", "show a file"], ["write file text", "save a file"], ["rm file", "delete a file"],
   ["apps", "your installed apps"], ["store", "the App Store"], ["sound", "on, off, test, list, keys on or off, or a volume like sound 120"],
-  ["name", "set what I call you, or name clear"], ["about or sysinfo", "About this NexOS: what it is, system info and credits"], ["files", "the Files app"], ["home", "close the terminal and go to the Home screen"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
+  ["name", "set what I call you, or name clear"], ["about or sysinfo", "About this NexOS: what it is, system info and credits"], ["files", "the Files app"], ["beat", "play or stop the NexOS beat"], ["home", "close the terminal and go to the Home screen"], ["uptime", "time since boot"], ["echo text", "repeat text"], ["clear", "clear the screen"],
 ];
 function shell(raw) {
   const t = raw.trim(); if (!t) { line("Type help to see commands."); return; }
@@ -836,6 +836,7 @@ function shell(raw) {
     case "sound": case "mute": case "unmute": case "volume": case "beep": return soundCmd(w, arg);
     case "about": case "ver": case "version": case "sysinfo": printAbout(); return;
     case "files": setMode(Files); Files.start(); return;
+    case "beat": beatToggle((t) => line(t, "ok")); return;
     case "home": case "launcher": if (cur === CTX.terminal) { closeAfterRun = true; line("Going to the Home screen.", "dimt"); } return;
     case "uptime": line("Up for " + spoken(Date.now() - bootTime) + "."); return;
     case "echo": line(arg); return;
@@ -861,15 +862,17 @@ function soundCmd(w, arg) {
   const n = parseInt(w === "volume" ? a : a.replace(/^(vol|volume)\s*/, ""), 10);
   if (!isNaN(n)) { setVolume(n, true); return; }
   if (a === "stop") { stopAmbient(); line("Ambient sound stopped."); return; }
+  if (a === "beat") { beatToggle((t) => line(t, "ok")); return; }
   const k = a.match(/^keys?\s*(on|off)?$/);
   if (k) { if (k[1]) setKeySounds(k[1] === "on", true); else line("Typing clicks are " + (keySounds ? "on" : "off") + ". Use sound keys on, or sound keys off."); return; }
   if (a === "list" || a === "s") { SOUND_LIST.forEach((x, i) => line((i ? "" : "Sounds: ") + x)); return; }
   line("Sound is " + (muted ? "muted" : "on") + ", volume " + volume + " percent, typing clicks " + (keySounds ? "on" : "off") + ". Use sound on, sound off, sound test, sound keys on or off, sound list, or sound 120 (0 to 150).");
 }
+var stopBeatHook = null; // set once the beat player exists
 function setMuted(m, speak) {
   m = !!m;
   if (m && !muted && speak !== "silent") play("off"); // the down pair plays, then sound fades out
-  muted = m; save("muted", muted); applyVolume(muted ? 0.16 : 0); if (muted) stopAmbient();
+  muted = m; save("muted", muted); applyVolume(muted ? 0.16 : 0); if (muted) { stopAmbient(); if (stopBeatHook) stopBeatHook(); }
   muteBtn.setAttribute("aria-pressed", String(muted)); muteBtn.textContent = muted ? "Muted" : "Mute";
   if (speak) line(muted ? "Sound off." : "Sound on.", "ok");
   if (!muted && speak !== "silent") play("on");
@@ -884,6 +887,7 @@ const SOUND_LIST = [
   "Sound on: up two notes. Sound off: down two notes. Octave up and down: a slide up or down.",
   "Typing: a soft key click, a deeper space bar, a tick for Backspace, and a faint tick for Tab and the arrow keys. In the Calculator, digits are tuned and operators click twice.",
   "Apps: Clock has a tick tock, a timer wind up, and stopwatch start, stop, lap and reset beeps. Notes flicks a page. Guess the Number slides up for higher and down for lower.",
+  "Listen to the beat, in Sound settings on Home or the beat command, plays the NexOS beat made from these sounds.",
   "Store and system sounds stay the same: rising chime for install, falling pair for uninstall, low double buzz for errors.",
 ];
 function setKeySounds(on, speak) {
@@ -1019,13 +1023,13 @@ setVolume(volume, false); setMuted(muted, "silent");
 /* ---------- Home, views and focus ---------- */
 // Home is a list of app buttons. Each opens a view: focus moves to the view's heading on open,
 // and back to the button that opened it on close (Close button, or Escape).
-const VIEWS = { home: $("#home"), terminal: $("#terminal-view"), app: $("#app-view"), about: $("#about-view"), sound: $("#sound-view") };
-const HEADS = { home: $("#home-h"), terminal: $("#term-h"), app: appH, about: $("#about-h"), sound: $("#sound-h") };
+const VIEWS = { home: $("#home"), terminal: $("#terminal-view"), app: $("#app-view"), about: $("#about-view") };
+const HEADS = { home: $("#home-h"), terminal: $("#term-h"), app: appH, about: $("#about-h") };
 let view = "home", opener = null;
 function launcherItems() {
   const c = [{ id: "terminal", label: "Terminal", desc: "command line" }, { id: "store", label: "App Store", desc: catalog.length + " apps" }];
   catalog.filter((a) => isInstalled(a.id) && a.id !== "sysinfo").forEach((a) => c.push({ id: "app:" + a.id, label: a.name }));
-  c.push({ id: "files", label: "Files" }, { id: "sound", label: "Sound settings" }, { id: "about", label: "About this NexOS", desc: "and system info" });
+  c.push({ id: "files", label: "Files" }, { id: "about", label: "About this NexOS", desc: "and system info" });
   return c;
 }
 const staticLaunch = [...launcherEl.querySelectorAll("li.static")]; // plain links kept from the page (Boot the real kernel)
@@ -1055,7 +1059,6 @@ function openView(id, focus = true) {
     if (!termGreeted) { termGreeted = true; greetLine(); }
     setMode(mode); renderChoices();
   } else if (id === "about") { renderAbout(); show("about"); }
-  else if (id === "sound") { show("sound"); }
   else {
     useCtx(CTX.app); CTX.app.log.replaceChildren(); pending = null;
     const appId = id === "store" ? "store" : id === "files" ? "files" : id.slice(4);
@@ -1085,6 +1088,36 @@ launcherEl.addEventListener("click", (e) => {
 $(".skip").addEventListener("click", (e) => { e.preventDefault(); HEADS[view].focus(); }); // skip to the open view's heading
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-close]"); if (!b) return; gesture(); closeView(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && view !== "home" && !e.defaultPrevented) { e.preventDefault(); gesture(); closeView(); } });
+
+/* ---- Sound settings: a disclosure on Home, collapsed by default, remembered ---- */
+const soundToggle = $("#sound-toggle"), soundPanel = $("#sound-panel");
+function setSoundOpen(open, withSound) {
+  soundToggle.setAttribute("aria-expanded", String(open)); soundPanel.hidden = !open; save("sound_open", open);
+  if (withSound) play(open ? "settings" : "back");
+}
+setSoundOpen(load("sound_open", false), false);
+soundToggle.addEventListener("click", () => { gesture(); setSoundOpen(soundPanel.hidden, true); });
+
+/* ---- Listen to the beat: the NexOS beat, played through the same volume, mute and limiter ---- */
+const BEAT_TITLE = "NexOS Morning to Night", beatAudio = $("#beat-audio"), beatBtn = $("#beat");
+let beatNode = null;
+function beatLength() { return isFinite(beatAudio.duration) && beatAudio.duration > 0 ? spoken(beatAudio.duration * 1000) : "1 minute 9 seconds"; }
+function beatPlaying() { return !beatAudio.paused && !beatAudio.ended; }
+function setBeatUI(on) { beatBtn.setAttribute("aria-pressed", String(on)); beatBtn.textContent = on ? "Stop the beat" : "Listen to the beat"; }
+function beatToggle(say) {
+  gesture();
+  if (beatPlaying()) { beatAudio.pause(); beatAudio.currentTime = 0; setBeatUI(false); play("back"); say("Stopped."); return; }
+  if (muted) { say("Sound is muted. Turn sound on to hear the beat."); return; }
+  try { if (ac && !beatNode && ac.createMediaElementSource) { beatNode = ac.createMediaElementSource(beatAudio); beatNode.connect(amb); } } catch (e) { beatNode = null; }
+  if (!beatNode) beatAudio.volume = Math.min(1, volume / 150);
+  beatAudio.currentTime = 0;
+  setBeatUI(true); say("Playing " + BEAT_TITLE + ", " + beatLength() + ".");
+  const p = beatAudio.play();
+  if (p && p.catch) p.catch(() => { setBeatUI(false); say("This browser couldn't play the beat."); });
+}
+stopBeatHook = () => { if (beatPlaying()) { beatAudio.pause(); beatAudio.currentTime = 0; setBeatUI(false); } };
+beatAudio.addEventListener("ended", () => { setBeatUI(false); soundSay(BEAT_TITLE + " finished."); });
+beatBtn.addEventListener("click", () => beatToggle(soundSay));
 
 /* ---- About this NexOS window ---- */
 const aboutBody = $("#about-body"), aboutStatus = $("#about-status");
