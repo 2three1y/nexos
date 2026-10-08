@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NexOS Web: a browser twin of NexOS</title>
+<meta name="description" content="A screen-reader friendly browser twin of the NexOS operating system: the nexos shell, an App Store and native apps, with classic synthesized sounds. Works offline.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0000aa">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="styles.css">
+<script src="script.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#cmd">Skip to command line</a>
+<header class="bar">
+  <h1>NexOS <span class="dim">Web</span></h1>
+  <p class="tag">A browser twin of the NexOS operating system</p>
+</header>
+
+<main id="main">
+  <section class="term" aria-labelledby="term-h">
+    <h2 id="term-h" class="sr-only">Terminal</h2>
+    <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Terminal output" tabindex="0">
+      <div class="entry boot">
+        <p class="ok">NexOS kernel v0.4 (web twin) - booting NexOS</p>
+        <p><span class="ok">[ ok ]</span> shell, files, App Store and apps loaded</p>
+        <p><span class="ok">[ ok ]</span> sound: synthesized, starts on your first key or tap</p>
+        <p class="hi">Welcome to NexOS.</p>
+        <p>Type <kbd>help</kbd> and press Enter, or use the buttons below the command line.</p>
+      </div>
+    </div>
+
+    <form id="cmd-form" class="cmdline" autocomplete="off">
+      <label for="cmd" id="prompt-label"><span class="prompt" id="prompt" aria-hidden="true">nexos&gt;</span><span class="sr-only" id="cmd-label-text">Command</span></label>
+      <input id="cmd" name="cmd" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-describedby="cmd-hint">
+      <button type="submit" class="run">Run</button>
+    </form>
+    <p id="note-status" class="sr-only" aria-live="assertive" aria-atomic="true"></p>
+    <p id="cmd-hint" class="hint">Enter runs. Up and Down arrows recall earlier commands.</p>
+  </section>
+
+  <section class="choices" aria-labelledby="choices-h">
+    <h2 id="choices-h">Quick buttons: <span id="mode-name">Shell</span></h2>
+    <ul id="choices" class="choice-list"></ul>
+  </section>
+
+  <section class="sound" aria-labelledby="sound-h">
+    <h2 id="sound-h">Sound</h2>
+    <div class="sound-row">
+      <label for="vol">Master volume</label>
+      <input id="vol" type="range" min="0" max="150" step="5" value="100" aria-valuetext="100 percent">
+      <output id="vol-out" for="vol">100%</output>
+    </div>
+    <div class="sound-row">
+      <button id="mute" type="button" aria-pressed="false">Mute</button>
+      <button id="test-sound" type="button">Play test chime</button>
+    </div>
+  </section>
+
+  <section class="about" aria-labelledby="about-h">
+    <h2 id="about-h">About</h2>
+    <p>NexOS Web is a web twin of NexOS, matching NexOS v0.4. The real <strong>NexOS kernel</strong> is written in Rust for 64-bit x86 PCs. It runs in QEMU or on real hardware, and plays its sounds on the PC speaker.</p>
+    <p>This page is not an emulator, and it does not run the real kernel. It mirrors the same <code>nexos&gt;</code> shell, App Store and apps in plain HTML and JavaScript, so you can try them in any browser with a screen reader.</p>
+    <p>The real kernel's source code: <a href="https://github.com/2three1y/nexos">github.com/2three1y/nexos</a>.</p>
+    <p>Everything stays on your device. There are no network requests, no tracking, and it keeps working offline. Your files, notes and installed apps are saved in this browser only.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>NexOS Web 0.4 · MIT licensed · Type <kbd>about</kbd> in the shell for more.</p>
+</footer>
+<div id="alert" class="sr-only" role="alert"></div>
+</body>
+</html>
