@@ -43,10 +43,11 @@ Hello from ring 3! I'm the first Looscid userland program.
 - A panic handler with a recursion lock that reports file and line
 
 **Looscid OS**
-- The `looscid>` shell: `help`, `clear`, `about`, `uptime`, `echo`, `mem`, `ls`, `cat`, `write`, `rm`, `apps`, `run`, `beep`, `mute`, `theme`, `int3`, `reboot`
+- The `looscid>` shell: `help`, `clear`, `about`, `uptime`, `echo`, `mem`, `ls`, `cat`, `write`, `rm`, `apps`, `run`, `insomnia`, `beep`, `mute`, `theme`, `int3`, `reboot`
 - An in-memory filesystem (`ls`, `cat`, `write`, `rm`)
 - `userland/hello`: the first ring-3 Looscid program, embedded in the kernel image
-- An app registry (`apps`, `run <app>`): this is where Looscid apps will plug in
+- **Insomnia** (`insomnia` or `run insomnia`): an app for when you can't sleep. It shows a moon and gently twinkling stars, and a sheep hops the fence each time you press Space. The counter has notes at milestones (try reaching #404). A short PC-speaker lullaby plays, and `M` turns it off. `T` stops the twinkling and `Esc` takes you back to the shell. A screen reader on serial hears the instructions and every sheep, but none of the ASCII art.
+- An app registry (`apps`, `run <app>`): this is where Looscid apps plug in. It holds ring-3 ELF apps and built-in apps
 
 ## Accessibility
 
@@ -99,6 +100,7 @@ nexos/
 │       ├── syscall.rs    # int 0x80 gate, enter/exit user mode
 │       ├── user.rs       # ELF loader, app registry
 │       ├── fs.rs         # in-memory filesystem
+│       ├── apps/insomnia.rs # the Insomnia app
 │       └── shell.rs      # the looscid> shell
 └── userland/             # Looscid ring-3 programs
     ├── user.ld           # linked at 0x4000_0000

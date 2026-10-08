@@ -16,6 +16,7 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 - [x] In-memory filesystem (`ls`, `cat`, `write`, `rm`)
 - [x] The `looscid>` shell, with an app registry as the launch hook for future apps
 - [x] PC-speaker boot chime with `mute`
+- [x] Insomnia app (built in): moon + starfield, sheep counter, lullaby, Esc back to the shell
 
 ## Next: the OS layer
 
@@ -26,6 +27,10 @@ The long-term goal is to boot straight into Looscid, the local-first workspace.
 - [ ] A block device driver (ATA/virtio) and a simple on-disk filesystem
 - [ ] Load apps from disk instead of embedding them in the kernel
 - [ ] Framebuffer graphics console (UEFI boot via GOP), keeping the serial mirror
+
+## Future apps
+
+- [ ] Insomnia, full version: soundscape mixer, sheep counter and 4am notes, ported from the Insomnia OS web toy (github.com/2three1y/insomnia-os) as a ring-3 Looscid OS app once user programs can read the keyboard and draw
 
 ## Then: Looscid
 
