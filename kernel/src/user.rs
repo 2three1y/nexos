@@ -31,7 +31,7 @@ pub static APPS: &[App] = &[
     },
     App {
         name: "insomnia",
-        about: "can't sleep? moon, stars, a sheep counter and a lullaby (Esc to exit)",
+        about: "can't sleep? sheep, 4am thoughts, soundscapes, goodnight (Esc to exit)",
         kind: AppKind::Native(crate::apps::insomnia::run),
     },
 ];

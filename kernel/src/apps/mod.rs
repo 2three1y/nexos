@@ -2,3 +2,5 @@
 //! Ring-3 apps live in userland/ and are listed in user.rs.
 
 pub mod insomnia;
+pub mod soundscape;
+pub mod thoughts;

@@ -19,9 +19,10 @@ const HELP: &[(&str, &str)] = &[
     ("rm <file>", "delete a file"),
     ("apps", "list programs that can run in user mode"),
     ("run <app>", "run an app (try: run hello)"),
-    ("insomnia", "can't sleep? moon, stars and a sheep counter"),
+    ("insomnia", "can't sleep? sheep, 4am thoughts, soundscapes, goodnight"),
     ("beep", "play the boot chime"),
     ("mute", "turn sound off/on"),
+    ("sound", "speaker status: notes played, soundscape, mute"),
     ("theme dark|light", "high-contrast colour theme"),
     ("int3", "fire a breakpoint exception (handled, then resumes)"),
     ("reboot", "restart the machine"),
@@ -104,7 +105,7 @@ fn execute(line: &str) {
             }
         }
         "cat" => match fs::read(rest) {
-            Some(d) => println!("{}", d),
+            Some(d) => println!("{}", d.trim_end()),
             None => println!("cat: no such file: {}", rest),
         },
         "write" => {
@@ -149,7 +150,18 @@ fn execute(line: &str) {
         "mute" => {
             let now = !timer::MUTED.load(Ordering::Relaxed);
             timer::MUTED.store(now, Ordering::Relaxed);
+            if now {
+                timer::speaker_off();
+            }
             println!("sound {}", if now { "muted" } else { "on" });
+        }
+        "sound" => {
+            println!(
+                "speaker: {} notes programmed on PIT channel 2 since boot; soundscape: {}; sound {}",
+                timer::NOTES.load(Ordering::Relaxed),
+                crate::apps::soundscape::playing(),
+                if timer::MUTED.load(Ordering::Relaxed) { "muted" } else { "on" }
+            );
         }
         "theme" => match rest {
             "light" => { vga::WRITER.lock().set_theme(true); println!("theme: black on white"); }
