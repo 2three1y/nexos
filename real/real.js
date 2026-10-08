@@ -168,7 +168,11 @@
     const t = ac.currentTime;
     if (spkFreq > 0) osc.frequency.setValueAtTime(Math.min(spkFreq, 20000), t);
     gate.gain.setTargetAtTime(spkOn && spkFreq > 0 ? 1 : 0, t, 0.003);
+    clearTimeout(quietTimer);
+    if (spkOn && spkFreq > 0) { if (ac.state === "suspended" && !document.hidden) ac.resume().catch(() => {}); }
+    else quietTimer = setTimeout(() => { if (ac && ac.state === "running" && !(spkOn && spkFreq > 0)) ac.suspend().catch(() => {}); }, 15000);
   }
+  let quietTimer = null;
   soundBox.addEventListener("change", () => { save(); if (master) master.gain.setTargetAtTime(masterLevel(), ac.currentTime, 0.01); });
   vol.addEventListener("input", () => { volOut.textContent = vol.value + "%"; save(); if (master) master.gain.setTargetAtTime(masterLevel(), ac.currentTime, 0.01); });
   ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, unlockAudio, { capture: true }));
@@ -209,6 +213,15 @@
   emulator.add_listener("pcspeaker-disable", () => { spkOn = false; applySpeaker(); });
   emulator.add_listener("pcspeaker-update", (d) => { spkFreq = d[0] === 3 && d[1] > 0 ? 1193182 / d[1] : 0; applySpeaker(); });
   emulator.add_listener("screen-set-size", () => setTimeout(fit, 0));
+  // Battery: pause the emulated PC while the tab is hidden, and let the sound engine sleep while the speaker is quiet.
+  let pausedByHide = false;
+  document.addEventListener("visibilitychange", () => {
+    try {
+      if (document.hidden) { if (emulator.is_running && emulator.is_running()) { emulator.stop(); pausedByHide = true; } if (ac && ac.state === "running") ac.suspend().catch(() => {}); }
+      else if (pausedByHide) { pausedByHide = false; emulator.run(); }
+    } catch (e) {}
+  });
+  document.addEventListener("calmchange", () => setTimeout(fit, 0));
   setTimeout(fit, 0);
   window.nexosEmulator = emulator;
 })();

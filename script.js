@@ -56,8 +56,16 @@ function ensureAudio() {
     unlockIOS();
   }
   if (ac.state === "suspended") ac.resume().catch(() => {});
+  noteSound();
   return ac;
 }
+// Battery: the audio engine sleeps after 20 s of silence and while the tab is hidden (unless a soundscape or the beat is playing).
+var lastSoundAt = 0, idleSleep = null;
+function audioBusy() { try { return !!ambient || (typeof beatPlaying === "function" && beatPlaying()); } catch (e) { return false; } }
+function noteSound() { lastSoundAt = Date.now(); clearTimeout(idleSleep); idleSleep = setTimeout(sleepIfIdle, 20000); }
+function sleepIfIdle() { if (ac && ac.state === "running" && !audioBusy() && Date.now() - lastSoundAt >= 19000) ac.suspend().catch(() => {}); else if (ac && audioBusy()) noteSound(); }
+window.__psAudio = { state: () => ac && ac.state, idleNow: () => { lastSoundAt = 0; sleepIfIdle(); } };
+document.addEventListener("visibilitychange", () => { if (!ac) return; if (document.hidden) { if (!audioBusy()) ac.suspend().catch(() => {}); } else if (audioBusy() && ac.state === "suspended") ac.resume().catch(() => {}); });
 // master -> limiter -> out; every sound (buttons, keys, chimes, soundscapes) goes through it.
 function makeChain(c) {
   const limiter = c.createDynamicsCompressor();
