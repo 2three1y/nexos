@@ -1,4 +1,4 @@
-# Looscid app manifest (format: docs/APPS.md)
+# NexOS app manifest (format: docs/APPS.md)
 id = piano
 name = Piano
 version = 1.0

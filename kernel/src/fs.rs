@@ -16,7 +16,7 @@ pub fn init() -> usize {
     let mut fs = FILES.lock();
     fs.push(File {
         name: "readme.txt".into(),
-        data: "Welcome to Looscid OS, running on the NexOS kernel.\n\
+        data: "Welcome to NexOS.\n\
                Everything works from the keyboard, and everything on screen\n\
                is mirrored to the serial port for screen readers.\n\
                Type 'help' to see what you can do."

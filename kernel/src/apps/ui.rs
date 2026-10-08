@@ -1,4 +1,4 @@
-//! The Looscid app toolkit: the small set of helpers every native app uses so
+//! The NexOS app toolkit: the small set of helpers every native app uses so
 //! they all feel the same. Plain text, short lines, every status said in words,
 //! and the same keys everywhere: h for help, q to quit (Esc also quits).
 //!

@@ -1,13 +1,13 @@
-//! Guess the Number — a ring-3 Looscid game, available from the App Store.
+//! Guess the Number — a ring-3 NexOS game, available from the App Store.
 //!
-//! Built on the `looscid` app API: everything goes through system calls.
+//! Built on the `nexos` app API: everything goes through system calls.
 //! Higher and lower are said in words and also played as a rising or
 //! falling tone, so it works by ear.
 
 #![no_std]
 #![no_main]
 
-use looscid::{beep, println, read_line, sleep_ms, title, uptime_ms, Buf, Rng};
+use nexos::{beep, println, read_line, sleep_ms, title, uptime_ms, Buf, Rng};
 
 const MAX: u64 = 100;
 const TRIES: u32 = 7;
@@ -97,11 +97,11 @@ pub extern "C" fn _start() -> ! {
         }
     }
     println!("Closed Guess the Number.");
-    looscid::exit(0)
+    nexos::exit(0)
 }
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    looscid::write("guess: panic\n");
-    looscid::exit(1)
+    nexos::write("guess: panic\n");
+    nexos::exit(1)
 }

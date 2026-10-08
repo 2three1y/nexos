@@ -1,4 +1,4 @@
-//! The Looscid App Store.
+//! The NexOS App Store.
 //!
 //! Every app ships as a package manifest (a small `key = value` text file, see
 //! docs/APPS.md). The catalog is bundled into the OS image from

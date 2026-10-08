@@ -1,7 +1,6 @@
-# Looscid OS — Cargo workspace root
+# NexOS — Cargo workspace root
 #
-# NexOS is the kernel; Looscid OS is the operating system layer that runs on
-# top of it. The kernel is a freestanding no_std x86_64 binary booted by GRUB
+# NexOS is the operating system and its kernel. The kernel is a freestanding no_std x86_64 binary booted by GRUB
 # (Multiboot2); userland/ holds ring-3 programs that the kernel loads and runs.
 
 [workspace]
@@ -9,7 +8,7 @@ resolver = "2"
 members = ["kernel", "userland"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 license = "MIT"
 

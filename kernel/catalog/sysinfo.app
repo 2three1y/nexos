@@ -1,4 +1,4 @@
-# Looscid app manifest (format: docs/APPS.md)
+# NexOS app manifest (format: docs/APPS.md)
 id = sysinfo
 name = System Info
 version = 1.0

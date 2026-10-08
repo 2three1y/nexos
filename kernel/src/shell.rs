@@ -1,4 +1,4 @@
-//! The Looscid shell: a small keyboard-driven command line.
+//! The NexOS shell: a small keyboard-driven command line.
 
 use crate::vga::Color;
 use crate::{allocator, console, fs, input, memory, print, println, timer, vga};
@@ -9,7 +9,7 @@ use core::sync::atomic::Ordering;
 const HELP: &[(&str, &str)] = &[
     ("help", "show this list"),
     ("clear", "clear the screen"),
-    ("about", "about Looscid OS and the NexOS kernel"),
+    ("about", "about NexOS"),
     ("uptime", "time since boot"),
     ("echo <text>", "print text"),
     ("mem", "heap, frame and paging stats"),
@@ -31,11 +31,11 @@ const HELP: &[(&str, &str)] = &[
 ];
 
 fn prompt() {
-    console::colored(Color::Yellow, format_args!("looscid> "));
+    console::colored(Color::Yellow, format_args!("nexos> "));
 }
 
 pub fn run() -> ! {
-    println!("Looscid OS shell ready. Type 'help' for commands.");
+    println!("NexOS shell ready. Type 'help' for commands.");
     println!("Type home for your apps, or store for the App Store.");
     let mut line = String::new();
     prompt();
@@ -81,9 +81,9 @@ fn execute(line: &str) {
         }
         "clear" => console::clear(),
         "about" => {
-            console::colored(Color::LightCyan, format_args!("Looscid OS 0.2 on the NexOS kernel v{}\n", env!("CARGO_PKG_VERSION")));
+            console::colored(Color::LightCyan, format_args!("NexOS v{}\n", env!("CARGO_PKG_VERSION")));
             println!("A hobby operating system in Rust for x86_64, by Hasan (2three1y).");
-            println!("NexOS is the kernel; Looscid OS is the system built on top of it.");
+            println!("NexOS is both the operating system and its kernel.");
             println!("Accessible by design: keyboard-only, high contrast, serial mirror.");
         }
         "uptime" => {

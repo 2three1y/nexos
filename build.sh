@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Looscid OS (NexOS kernel) build script — a thin wrapper around make.
+# NexOS build script — a thin wrapper around make.
 #
 # Usage:
-#   ./build.sh            # build userland + kernel + bootable ISO (build/looscid.iso)
+#   ./build.sh            # build userland + kernel + bootable ISO (build/nexos.iso)
 #   ./build.sh --qemu     # build and boot in QEMU (VGA window + serial here)
 #   ./build.sh --serial   # build and boot headless, serial console only
 set -e

@@ -1,4 +1,4 @@
-//! Built-in Looscid OS apps that run inside the kernel. Ring-3 apps live in
+//! Built-in NexOS apps that run inside the kernel. Ring-3 apps live in
 //! userland/. Every app is described by a manifest in kernel/catalog/ and
 //! registered by its entry name in user.rs (see docs/APPS.md).
 

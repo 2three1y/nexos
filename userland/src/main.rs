@@ -1,4 +1,4 @@
-//! `hello` — the first Looscid userland program.
+//! `hello` — the first NexOS userland program.
 //!
 //! Runs in ring 3 with no access to kernel memory or I/O ports. Everything it
 //! does goes through NexOS system calls (`int 0x80`, number in RAX).
@@ -46,7 +46,7 @@ impl Write for Buf {
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    write("Hello from ring 3! I'm the first Looscid userland program.\n");
+    write("Hello from ring 3! I'm the first NexOS userland program.\n");
     let pid = unsafe { syscall(SYS_GETPID, 0, 0) };
     let up = unsafe { syscall(SYS_UPTIME_MS, 0, 0) };
     let mut b = Buf { data: [0; 128], len: 0 };

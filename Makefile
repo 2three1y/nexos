@@ -1,4 +1,4 @@
-# Looscid OS (NexOS kernel) — build and run.
+# NexOS — build and run.
 #
 #   make        build userland + kernel and a bootable GRUB ISO
 #   make run    boot it in QEMU (VGA window + serial on this terminal + PC speaker sound)
@@ -13,7 +13,7 @@
 TARGET   := x86_64-unknown-none
 PROFILE  := release
 OUT      := target/$(TARGET)/$(PROFILE)
-ISO      := build/looscid.iso
+ISO      := build/nexos.iso
 QEMU     := qemu-system-x86_64
 QEMUFLAGS := -m 128M -no-reboot -serial stdio -rtc base=localtime
 

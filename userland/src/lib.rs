@@ -1,4 +1,4 @@
-//! `looscid` — the app API for ring-3 Looscid programs.
+//! `nexos` — the app API for ring-3 NexOS programs.
 //!
 //! A tiny, allocation-free layer over the NexOS system calls (`int 0x80`) so
 //! apps can print, read keys and lines, play tones and keep time. The same

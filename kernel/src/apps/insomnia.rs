@@ -1,4 +1,4 @@
-//! Insomnia: a Looscid OS app for when you can't sleep.
+//! Insomnia: a NexOS app for when you can't sleep.
 //!
 //! A small menu: 1 Sheep, 2 Thoughts, 3 Sounds, 4 Goodnight.
 //! - Sheep: a calm night sky (moon + slowly twinkling stars) and a sheep
@@ -98,7 +98,7 @@ fn draw_sky(rng: &mut Rng) {
     for (i, line) in MOON_ART.iter().enumerate() {
         put_at(2 + i, 58, line, MOON);
     }
-    put_at(0, 2, "Insomnia  -  a Looscid OS app", ACCENT);
+    put_at(0, 2, "Insomnia  -  a NexOS app", ACCENT);
     // The fence and the meadow.
     put_at(FENCE_ROW + 1, 0, &"_".repeat(SCREEN_COLS), DIM);
     put_at(FENCE_ROW - 1, FENCE_COL, "|-|-|", SKY);
@@ -248,7 +248,7 @@ fn draw_menu(sheep: u32) {
     for (i, line) in MOON_ART.iter().enumerate() {
         put_at(2 + i, 60, line, MOON);
     }
-    put_at(0, 2, "Insomnia  -  a Looscid OS app", ACCENT);
+    put_at(0, 2, "Insomnia  -  a NexOS app", ACCENT);
     put_at(6, 6, "What do you need tonight?", TEXT);
     for (i, line) in MENU.iter().enumerate() {
         put_at(8 + i * 2, 8, line, TEXT);

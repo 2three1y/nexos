@@ -1,9 +1,9 @@
-//! NexOS — the kernel of Looscid OS.
+//! NexOS — the kernel.
 //!
 //! Boot path: GRUB (Multiboot2) -> boot.rs (32-bit stub, long mode) ->
 //! `kernel_main`, which brings up serial + VGA, GDT/TSS, IDT, memory and
 //! paging, the heap, the PIC + PIT timer, keyboard input, and then starts
-//! the Looscid shell.
+//! the NexOS shell.
 
 #![no_std]
 #![no_main]
@@ -39,7 +39,7 @@ pub extern "C" fn kernel_main(magic: u64, info_addr: u64) -> ! {
     serial::init();
     vga::WRITER.lock().clear();
 
-    console::colored(Color::LightCyan, format_args!("NexOS kernel v{} (x86_64) - booting Looscid OS\n", env!("CARGO_PKG_VERSION")));
+    console::colored(Color::LightCyan, format_args!("NexOS v{} (x86_64) - booting\n", env!("CARGO_PKG_VERSION")));
     if magic != MULTIBOOT2_MAGIC {
         panic!("not booted by a Multiboot2 loader (magic {:#x})", magic);
     }
@@ -79,7 +79,7 @@ pub extern "C" fn kernel_main(magic: u64, info_addr: u64) -> ! {
     ok!("App Store: {} apps in the catalog, {} installed", in_store, installed);
 
     timer::boot_chime();
-    console::colored(Color::LightCyan, format_args!("Welcome to Looscid OS.\n"));
+    console::colored(Color::LightCyan, format_args!("Welcome to NexOS.\n"));
     shell::run()
 }
 
