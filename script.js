@@ -960,29 +960,40 @@ function run(raw, fromButton) {
   renderChoices();
   return false;
 }
-let enterKey = false;
-function onSubmit(e) {
-  e.preventDefault(); gesture();
-  play(enterKey ? "enter" : "run"); enterKey = false;
-  const raw = input.value; input.value = "";
+// One way in for every submit, so a braille display's Enter, a keyboard Enter, the on-screen Go key,
+// a stray newline and the Run button all run the command exactly once.
+let lastSubmitAt = -1e9;
+function doSubmit(how) {
+  const t = performance.now();
+  if (t - lastSubmitAt < 250 && !input.value.replace(/[\r\n\s]+/g, "")) return; // the same Enter arriving by a second route (its text is already used)
+  lastSubmitAt = t;
+  gesture();
+  play(how === "button" ? "run" : "enter");
+  const raw = input.value.replace(/[\r\n]+/g, " ").replace(/\s+$/, ""); input.value = "";
   if (raw.trim()) { history.push(raw); if (history.length > 50) history.shift(); }
   hIdx = history.length;
   if (run(raw)) return;
   input.focus();
 }
+const isEnter = (e) => (e.key === "Enter" || e.keyCode === 13 || e.which === 13) && !e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
+function onSubmit(e) { e.preventDefault(); doSubmit(e.submitter && e.submitter.type === "submit" ? "button" : "enter"); }
 form.addEventListener("submit", onSubmit);
 appForm.addEventListener("submit", onSubmit);
 function onKeydown(e) {
-  if (e.key === "Enter" && !e.isComposing) enterKey = true;
+  if (isEnter(e)) { e.preventDefault(); doSubmit("enter"); return; }
   if (/^Arrow/.test(e.key) && !e.altKey && !e.metaKey && !e.ctrlKey) play("arrow");
   if (e.key === "ArrowUp" && history.length) { e.preventDefault(); hIdx = Math.max(0, hIdx - 1); input.value = history[hIdx] || ""; }
   else if (e.key === "ArrowDown" && history.length) { e.preventDefault(); hIdx = Math.min(history.length, hIdx + 1); input.value = history[hIdx] || ""; }
   else if (mode && mode.keyMode && !e.ctrlKey && !e.metaKey && !e.altKey && input.value === "" && /^[0-9]$/.test(e.key)) { gesture(); if (mode.key(e.key)) e.preventDefault(); }
 }
+function onBeforeInput(e) {
+  if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph" || (/^insert/.test(e.inputType || "") && /[\r\n]/.test(e.data || ""))) { e.preventDefault(); doSubmit("enter"); }
+}
 document.addEventListener("keydown", () => ensureAudio(), { once: true });
 document.addEventListener("keydown", (e) => { if (e.key === "Tab" && !e.altKey && !e.metaKey && !e.ctrlKey) play("tab"); });
 // Typing clicks come from the input event, so on-screen keyboards (iPhone, VoiceOver typing) click too.
 function onInput(e) {
+  if (/[\r\n]/.test(input.value) || /[\r\n]/.test(e.data || "")) { doSubmit("enter"); return; } // a newline slipped in (some braille displays and pastes)
   const it = e.inputType || "insertText", d = e.data || "";
   if (/^delete/.test(it)) return play("backspace");
   if (!/^insert/.test(it) || it === "insertLineBreak") return;
@@ -991,7 +1002,7 @@ function onInput(e) {
   if (mode && mode.label === "Calculator") { if (/[0-9]/.test(ch)) return play("calcdigit", +ch); if (/[-+*\/x×÷^%()=]/.test(ch)) return play("calcop"); }
   play("key");
 }
-for (const el of [CTX.terminal.input, CTX.app.input]) { el.addEventListener("keydown", onKeydown); el.addEventListener("input", onInput); }
+for (const el of [CTX.terminal.input, CTX.app.input]) { el.addEventListener("keydown", onKeydown); el.addEventListener("beforeinput", onBeforeInput); el.addEventListener("input", onInput); }
 
 /* ---------- sound controls ---------- */
 const volEl = $("#vol"), volOut = $("#vol-out"), muteBtn = $("#mute");
