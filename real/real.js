@@ -65,20 +65,70 @@
     unlockAudio();
     emulator.serial0_send(text);
   }
+  // Enter sends the line. Braille displays (VoiceOver on iOS and macOS) don't
+  // always deliver Enter as a normal key press or a form submit: it may come as
+  // a keydown with only keyCode 13, a NumpadEnter code, an insertLineBreak /
+  // insertParagraph input event, or a stray newline in the box. Every one of
+  // those sends exactly once; a second trigger for the same press is dropped.
+  const LINE_TYPES = { insertLineBreak: 1, insertParagraph: 1 };
+  const hasNL = (s) => typeof s === "string" && /[\r\n]/.test(s);
+  const stripNL = (s) => s.replace(/[\r\n]+/g, "");
+  let lastLine = { t: -1e9, src: "" };
+  function isEnterKey(e) {
+    return e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter" ||
+      e.keyCode === 13 || e.which === 13;
+  }
+  function sendLine(src) {
+    const now = performance.now();
+    if (cmd.value && hasNL(cmd.value)) cmd.value = stripNL(cmd.value);
+    // The same Enter seen by a second path (e.g. keydown, then submit) a moment
+    // later finds the box already emptied by the first: that's one press, not two.
+    // New text in the box means a new command, so it always goes.
+    if (src !== lastLine.src && now - lastLine.t < 300 && !cmd.value) return false;
+    lastLine = { t: now, src };
+    if (live.checked) { send("\r"); cmd.value = ""; }
+    else { send(cmd.value + "\r"); cmd.value = ""; }
+    if (document.activeElement !== cmd) cmd.focus();
+    return true;
+  }
   $("send-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    send(cmd.value + "\r");
-    cmd.value = "";
-    cmd.focus();
+    sendLine("submit");
   });
   cmd.addEventListener("keydown", (e) => {
-    if (!live.checked || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    if (isEnterKey(e)) {
+      e.preventDefault(); // also stops the implicit submit, so one send
+      if (!e.repeat) sendLine("key");
+      return;
+    }
+    if (!live.checked) return;
     let k = null;
-    if (e.key === "Enter") k = "\r";
-    else if (e.key === "Backspace") k = "\b";
+    if (e.key === "Backspace") k = "\b";
     else if (e.key === "Escape") k = "\x1b";
-    else if (e.key.length === 1) k = e.key;
+    else if (e.key && e.key.length === 1) k = e.key;
     if (k !== null) { e.preventDefault(); send(k); }
+  });
+  // A keypress Enter only arrives if keydown didn't handle it (keydown's
+  // preventDefault suppresses it); some assistive input sends only this.
+  cmd.addEventListener("keypress", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isEnterKey(e)) { e.preventDefault(); sendLine("keypress"); }
+  });
+  cmd.addEventListener("beforeinput", (e) => {
+    if (LINE_TYPES[e.inputType] || (e.inputType === "insertText" && hasNL(e.data))) {
+      if (e.cancelable) e.preventDefault();
+      if (e.inputType === "insertText" && e.data && !live.checked) {
+        const before = stripNL(e.data.split(/[\r\n]/)[0]);
+        if (before) cmd.value += before;
+      }
+      sendLine("beforeinput");
+    }
+  });
+  cmd.addEventListener("input", (e) => {
+    if (LINE_TYPES[e.inputType] || hasNL(e.data) || hasNL(cmd.value)) {
+      sendLine("input");
+    }
   });
   document.querySelectorAll("button[data-key]").forEach((btn) => {
     btn.addEventListener("click", () => send(btn.dataset.key));
