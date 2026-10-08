@@ -363,13 +363,13 @@ fn sounds_screen() {
 fn goodnight() {
     soundscape::stop();
     clear_screen();
-    let a = "Goodnight, Hasan.";
+    let a = "Goodnight, friend.";
     let b = "It's now safe to turn off your brain.";
     put_at(10, (SCREEN_COLS - a.len()) / 2, a, MOON);
     put_at(12, (SCREEN_COLS - b.len()) / 2, b, MOON);
     let c = "Returning to the shell in 10 seconds, or press any key.";
     put_at(22, (SCREEN_COLS - c.len()) / 2, c, DIM);
-    serial::write_str("\n[Goodnight] Goodnight, Hasan. It's now safe to turn off your brain.\n");
+    serial::write_str("\n[Goodnight] Goodnight, friend. It's now safe to turn off your brain.\n");
     serial::write_str("[Goodnight] Returning to the shell in 10 seconds, or press any key.\n");
     timer::goodnight_chime();
     // Drop keys typed during the chime, then wait for a key or 10 seconds.
@@ -426,7 +426,7 @@ pub fn run() {
     vga::show_cursor();
     console::clear();
     if said_goodnight {
-        crate::println!("Back from Insomnia. You counted {} sheep. Sleep well, Hasan.", sheep);
+        crate::println!("Back from Insomnia. You counted {} sheep. Sleep well.", sheep);
     } else {
         crate::println!("Back from Insomnia. You counted {} sheep. Goodnight.", sheep);
     }
