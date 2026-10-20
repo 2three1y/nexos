@@ -82,7 +82,7 @@ fn execute(line: &str) {
         "clear" => console::clear(),
         "about" => {
             console::colored(Color::LightCyan, format_args!("Looscid OS 0.2 on the NexOS kernel v{}\n", env!("CARGO_PKG_VERSION")));
-            println!("A hobby operating system in Rust for x86_64, by Hasan (2three1y).");
+            println!("A hobby operating system in Rust for x86_64, by Carter (2three1y).");
             println!("NexOS is the kernel; Looscid OS is the system built on top of it.");
             println!("Accessible by design: keyboard-only, high contrast, serial mirror.");
         }
