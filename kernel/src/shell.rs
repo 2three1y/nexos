@@ -82,7 +82,7 @@ fn execute(line: &str) {
         "clear" => console::clear(),
         "about" => {
             console::colored(Color::LightCyan, format_args!("NexOS v{}\n", env!("CARGO_PKG_VERSION")));
-            println!("A hobby operating system in Rust, by Hasan (2three1y).");
+            println!("A hobby operating system in Rust, by Carter (2three1y).");
             println!("This build: {}. NexOS builds for x86_64 and 32-bit i686.", crate::cpu::ARCH);
             println!("NexOS is both the operating system and its kernel.");
             println!("Accessible by design: keyboard-only, high contrast, serial mirror.");
