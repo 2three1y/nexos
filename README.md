@@ -70,7 +70,7 @@ calc> 12 * (3 + 4)
 - Apps are described by small text manifests, so new apps (and the Linux edition later) share one format. See [docs/APPS.md](docs/APPS.md)
 - An in-memory filesystem (`ls`, `cat`, `write`, `rm`)
 - `userland/hello`: the first ring-3 NexOS program, embedded in the kernel image
-- **Insomnia** (`insomnia` or `run insomnia`): an app for when you can't sleep, ported from the [Insomnia OS](https://github.com/2three1y/insomnia-os) web toy. It opens on a small menu:
+- **Insomnia** (`insomnia` or `run insomnia`): an app for when you can't sleep, ported from the [Insomnia OS](https://github.com/2three1y/insomniaos) web toy. It opens on a small menu:
   - **1 Sheep**: a moon, gently twinkling stars and a fence. Press Space and a sheep hops over; the counter has notes at milestones (try reaching #404). `T` stops the twinkling.
   - **2 Thoughts**: the 4am notepad. Type a thought and press Enter; it is saved with the time to `thoughts.txt`, so `cat thoughts.txt` in the shell shows it. Tab reads every saved thought back on the serial console.
   - **3 Sounds**: soundscapes on the PC speaker: Rain, Fan, Crickets, Old PC and Brahms' Lullaby. `F`/`S` change the tempo, `I` changes the intensity (soft, medium, full). The speaker has one voice and no volume knob, so intensity changes how busy the sound is. The sound keeps playing while you count sheep or write.
